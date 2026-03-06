@@ -24,21 +24,31 @@ const Badge = ({ children, color }) => (
     }}>{children}</span>
 );
 
-const TABS = ['analytics', 'attendance', 'employees', 'tasks', 'leaves', 'salary', 'productivity'];
+const TABS = [
+    'analytics',
+    'attendance',
+    'employees',
+    'tasks',
+    'leaves',
+    'salary',
+    'productivity',
+    'predictions'
+];
 const COLORS = ['#2e7df7', '#10b981', '#f59e0b', '#ef4444'];
 
 const AdminDashboard = () => {
     const [tab, setTab] = useState('analytics');
-    const [attendance, setAttendance]         = useState([]);
-    const [tasks, setTasks]                   = useState([]);
-    const [employees, setEmployees]           = useState([]);
-    const [leaves, setLeaves]                 = useState([]);
-    const [salaries, setSalaries]             = useState([]);
+    const [attendance, setAttendance] = useState([]);
+    const [tasks, setTasks] = useState([]);
+    const [employees, setEmployees] = useState([]);
+    const [leaves, setLeaves] = useState([]);
+    const [salaries, setSalaries] = useState([]);
+    const [predictions, setPredictions] = useState([]);
     const [productivityData, setProductivityData] = useState([]);
-    const [message, setMessage]               = useState('');
-    const [settingOffice, setSettingOffice]   = useState(false);
+    const [message, setMessage] = useState('');
+    const [settingOffice, setSettingOffice] = useState(false);
 
-    const [taskForm, setTaskForm]     = useState({ employee: '', date: '', description: '' });
+    const [taskForm, setTaskForm] = useState({ employee: '', date: '', description: '' });
     const [salaryForm, setSalaryForm] = useState({ employee: '', month: '', basicSalary: '', bonus: '', deductions: '' });
 
     const fetchData = async () => {
@@ -53,6 +63,22 @@ const AdminDashboard = () => {
             setAttendance(attRes.data);
             setTasks(taskRes.data);
             setEmployees(empRes.data);
+
+            // Fetch AI predictions for every employee
+            const predResults = await Promise.all(
+                empRes.data.map(emp =>
+                    API.get(`/predictions/${emp._id}`)
+                        .then(r => ({ ...r.data, name: emp.name, email: emp.email }))
+                        .catch(() => ({
+                            name: emp.name,
+                            email: emp.email,
+                            prediction: "Unavailable",
+                            riskScore: 0
+                        }))
+                )
+            );
+
+            setPredictions(predResults);
             setLeaves(leaveRes.data);
             setSalaries(salaryRes.data);
 
@@ -167,9 +193,9 @@ const AdminDashboard = () => {
     };
 
     const today = new Date().toISOString().split('T')[0];
-    const todayAttendance  = attendance.filter(a => a.date === today);
-    const pendingLeaves    = leaves.filter(l => l.status === 'pending').length;
-    const pendingSalaries  = salaries.filter(s => s.status === 'pending').length;
+    const todayAttendance = attendance.filter(a => a.date === today);
+    const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
+    const pendingSalaries = salaries.filter(s => s.status === 'pending').length;
 
     const attendanceChartData = (() => {
         const map = {};
@@ -177,13 +203,13 @@ const AdminDashboard = () => {
         return Object.entries(map).slice(-7).map(([date, count]) => ({ date: date.slice(5), count }));
     })();
 
-    const taskPieData  = [
+    const taskPieData = [
         { name: 'Completed', value: tasks.filter(t => t.completed).length },
-        { name: 'Pending',   value: tasks.filter(t => !t.completed).length },
+        { name: 'Pending', value: tasks.filter(t => !t.completed).length },
     ];
     const leavePieData = [
         { name: 'Approved', value: leaves.filter(l => l.status === 'approved').length },
-        { name: 'Pending',  value: leaves.filter(l => l.status === 'pending').length },
+        { name: 'Pending', value: leaves.filter(l => l.status === 'pending').length },
         { name: 'Rejected', value: leaves.filter(l => l.status === 'rejected').length },
     ];
 
@@ -248,12 +274,12 @@ const AdminDashboard = () => {
                 {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {[
-                        { label: 'Employees',       value: employees.length,                              color: '#2e7df7' },
-                        { label: 'Present Today',   value: todayAttendance.length,                        color: '#10b981' },
-                        { label: 'Total Tasks',     value: tasks.length,                                  color: '#f59e0b' },
-                        { label: 'Pending Tasks',   value: tasks.filter(t => !t.completed).length,        color: '#ef4444' },
-                        { label: 'Pending Leaves',  value: pendingLeaves,                                 color: '#a78bfa' },
-                        { label: 'Pending Salaries',value: pendingSalaries,                               color: '#fb923c' },
+                        { label: 'Employees', value: employees.length, color: '#2e7df7' },
+                        { label: 'Present Today', value: todayAttendance.length, color: '#10b981' },
+                        { label: 'Total Tasks', value: tasks.length, color: '#f59e0b' },
+                        { label: 'Pending Tasks', value: tasks.filter(t => !t.completed).length, color: '#ef4444' },
+                        { label: 'Pending Leaves', value: pendingLeaves, color: '#a78bfa' },
+                        { label: 'Pending Salaries', value: pendingSalaries, color: '#fb923c' },
                     ].map(({ label, value, color }) => (
                         <Card key={label} style={{ padding: '1.25rem' }}>
                             <div style={{ fontSize: '1.75rem', fontWeight: 700, color, fontFamily: 'var(--mono)' }}>{value}</div>
@@ -309,10 +335,10 @@ const AdminDashboard = () => {
                             <Card>
                                 <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '1rem', color: '#0f172a' }}>Quick Stats</h3>
                                 {[
-                                    { label: 'Total Payroll',       value: `₹${salaries.reduce((s, r) => s + r.netSalary, 0).toLocaleString()}` },
-                                    { label: 'Paid Salaries',       value: salaries.filter(s => s.status === 'paid').length },
-                                    { label: 'Approved Leaves',     value: leaves.filter(l => l.status === 'approved').length },
-                                    { label: 'Attendance Records',  value: attendance.length },
+                                    { label: 'Total Payroll', value: `₹${salaries.reduce((s, r) => s + r.netSalary, 0).toLocaleString()}` },
+                                    { label: 'Paid Salaries', value: salaries.filter(s => s.status === 'paid').length },
+                                    { label: 'Approved Leaves', value: leaves.filter(l => l.status === 'approved').length },
+                                    { label: 'Attendance Records', value: attendance.length },
                                 ].map(({ label, value }) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderBottom: '1px solid rgba(226,232,240,0.7)' }}>
                                         <span style={{ color: '#64748b', fontSize: '0.875rem' }}>{label}</span>
@@ -326,9 +352,9 @@ const AdminDashboard = () => {
                             <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '1rem', color: '#0f172a' }}>📥 Export Reports</h3>
                             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                 {[
-                                    { type: 'attendance',   label: '📋 Attendance Report', color: '#2e7df7' },
-                                    { type: 'salary',       label: '💰 Salary Report',      color: '#10b981' },
-                                    { type: 'productivity', label: '📊 Productivity Report',color: '#a78bfa' },
+                                    { type: 'attendance', label: '📋 Attendance Report', color: '#2e7df7' },
+                                    { type: 'salary', label: '💰 Salary Report', color: '#10b981' },
+                                    { type: 'productivity', label: '📊 Productivity Report', color: '#a78bfa' },
                                 ].map(({ type, label, color }) => (
                                     <button key={type} onClick={() => handleExport(type)} style={{
                                         padding: '0.75rem 1.5rem',
@@ -340,6 +366,88 @@ const AdminDashboard = () => {
                             </div>
                         </Card>
                     </>
+                )}
+                {/* PREDICTIONS TAB */}
+                {tab === 'predictions' && (
+                    <Card>
+                        <h3 style={{ fontWeight: 600, marginBottom: '1rem', color: '#0f172a' }}>
+                            ⚠ AI Productivity Risk Predictions
+                        </h3>
+
+                        <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                            Predicts which employees may struggle with deadlines based on tasks and attendance.
+                        </p>
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(226,232,240,0.8)' }}>
+                                        {['Employee', 'Working Hours', 'Tasks', 'Completion', 'Risk Score', 'Prediction']
+                                            .map(h => (
+                                                <th key={h} style={{
+                                                    padding: '0.75rem 1rem',
+                                                    textAlign: 'left',
+                                                    color: '#64748b',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.75rem',
+                                                    textTransform: 'uppercase'
+                                                }}>{h}</th>
+                                            ))}
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {predictions.map((p, i) => {
+
+                                        const color =
+                                            p.riskScore > 70 ? '#ef4444' :
+                                                p.riskScore > 40 ? '#f59e0b' :
+                                                    '#10b981';
+
+                                        return (
+                                            <tr key={i} style={{ borderBottom: '1px solid rgba(226,232,240,0.6)' }}>
+
+                                                <td style={{ padding: '0.875rem 1rem' }}>
+                                                    <div style={{ fontWeight: 600 }}>{p.name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.email}</div>
+                                                </td>
+
+                                                <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)' }}>
+                                                    {p.totalHours?.toFixed(2)}h
+                                                </td>
+
+                                                <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)' }}>
+                                                    {p.completedTasks}/{p.totalTasks}
+                                                </td>
+
+                                                <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)' }}>
+                                                    {(p.completionRate * 100).toFixed(0)}%
+                                                </td>
+
+                                                <td style={{ padding: '0.875rem 1rem' }}>
+                                                    <span style={{
+                                                        padding: '0.35rem 0.85rem',
+                                                        borderRadius: '999px',
+                                                        fontWeight: 700,
+                                                        background: `${color}15`,
+                                                        color,
+                                                        border: `1px solid ${color}35`
+                                                    }}>
+                                                        {p.riskScore}
+                                                    </span>
+                                                </td>
+
+                                                <td style={{ padding: '0.875rem 1rem' }}>
+                                                    <Badge color={color}>{p.prediction}</Badge>
+                                                </td>
+
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 )}
 
                 {/* ATTENDANCE TAB */}
@@ -511,7 +619,12 @@ const AdminDashboard = () => {
 
                 {/* SALARY TAB */}
                 {tab === 'salary' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: '1.5rem' }}>
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0,1fr) minmax(320px,420px)',
+                        gap: '1.5rem',
+                        alignItems: 'start'
+                    }}>
                         <Card>
                             <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', color: '#0f172a' }}>Salary Records</h3>
                             <div style={{ overflowX: 'auto' }}>
@@ -561,10 +674,10 @@ const AdminDashboard = () => {
                                     </select>
                                 </div>
                                 {[
-                                    { key: 'month',       label: 'Month',           type: 'month',  placeholder: '' },
-                                    { key: 'basicSalary', label: 'Basic Salary (₹)',type: 'number', placeholder: '50000' },
-                                    { key: 'bonus',       label: 'Bonus (₹)',       type: 'number', placeholder: '0' },
-                                    { key: 'deductions',  label: 'Deductions (₹)',  type: 'number', placeholder: '0' },
+                                    { key: 'month', label: 'Month', type: 'month', placeholder: '' },
+                                    { key: 'basicSalary', label: 'Basic Salary (₹)', type: 'number', placeholder: '50000' },
+                                    { key: 'bonus', label: 'Bonus (₹)', type: 'number', placeholder: '0' },
+                                    { key: 'deductions', label: 'Deductions (₹)', type: 'number', placeholder: '0' },
                                 ].map(({ key, label, type, placeholder }) => (
                                     <div key={key} style={{ marginBottom: '1.1rem' }}>
                                         <label style={labelStyle}>{label}</label>
