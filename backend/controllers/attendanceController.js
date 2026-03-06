@@ -1,4 +1,6 @@
 const Attendance = require('../models/Attendance');
+const Settings = require("../models/Settings");
+const settings = await Settings.findOne();
 
 const checkIn = async (req, res) => {
     try {
@@ -9,8 +11,10 @@ const checkIn = async (req, res) => {
         const { lat, lng } = req.body;
         if (!lat || !lng) return res.status(400).json({ message: 'Location is required to check in' });
 
-        const officeLat = parseFloat(process.env.OFFICE_LAT);
-        const officeLng = parseFloat(process.env.OFFICE_LNG);
+
+
+        const officeLat = settings.officeLat;
+        const officeLng = settings.officeLng;
 
         if (officeLat === 0 && officeLng === 0) {
             return res.status(400).json({ message: 'Office location has not been set by admin yet' });

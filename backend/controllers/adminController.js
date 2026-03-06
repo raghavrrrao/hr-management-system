@@ -1,32 +1,28 @@
 const fs = require('fs');
 const path = require('path');
 const User = require('../models/User');
-
+const Settings = require("../models/Settings");
 // Set office location — writes to .env file
 const setOfficeLocation = async (req, res) => {
     try {
         const { lat, lng } = req.body;
-        if (!lat || !lng) return res.status(400).json({ message: 'lat and lng required' });
 
-        const envPath = path.resolve(__dirname, '../.env');
-        let envContent = fs.readFileSync(envPath, 'utf8');
+        let settings = await Settings.findOne();
 
-        envContent = envContent
-            .replace(/OFFICE_LAT=.*/,  `OFFICE_LAT=${lat}`)
-            .replace(/OFFICE_LNG=.*/,  `OFFICE_LNG=${lng}`);
+        if (!settings) {
+            settings = await Settings.create({ officeLat: lat, officeLng: lng });
+        } else {
+            settings.officeLat = lat;
+            settings.officeLng = lng;
+            await settings.save();
+        }
 
-        fs.writeFileSync(envPath, envContent);
+        res.json({ message: "Office location updated", lat, lng });
 
-        // Update in-memory process.env too
-        process.env.OFFICE_LAT = String(lat);
-        process.env.OFFICE_LNG = String(lng);
-
-        res.json({ message: 'Office location updated ✅', lat, lng });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
-
 // Promote or demote employee
 const promoteEmployee = async (req, res) => {
     try {
