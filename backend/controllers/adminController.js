@@ -1,16 +1,21 @@
-const fs = require('fs');
-const path = require('path');
 const User = require('../models/User');
 const Settings = require("../models/Settings");
-// Set office location — writes to .env file
+
 const setOfficeLocation = async (req, res) => {
     try {
         const { lat, lng } = req.body;
 
+        if (!lat || !lng) {
+            return res.status(400).json({ message: "Latitude and longitude required" });
+        }
+
         let settings = await Settings.findOne();
 
         if (!settings) {
-            settings = await Settings.create({ officeLat: lat, officeLng: lng });
+            settings = await Settings.create({
+                officeLat: lat,
+                officeLng: lng
+            });
         } else {
             settings.officeLat = lat;
             settings.officeLng = lng;
@@ -23,20 +28,25 @@ const setOfficeLocation = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
-// Promote or demote employee
+
 const promoteEmployee = async (req, res) => {
     try {
-        const { role } = req.body; // 'admin' or 'employee'
+        const { role } = req.body;
+
         if (!['admin', 'employee'].includes(role)) {
             return res.status(400).json({ message: 'Role must be admin or employee' });
         }
+
         const user = await User.findByIdAndUpdate(
             req.params.id,
             { role },
             { new: true }
         ).select('-password');
+
         if (!user) return res.status(404).json({ message: 'User not found' });
+
         res.json(user);
+
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
