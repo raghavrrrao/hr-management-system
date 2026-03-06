@@ -22,6 +22,7 @@ app.use('/api/employees', require('./routes/employeeRoutes'));
 app.use('/api/productivity', require('./routes/productivityRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/predictions', require('./routes/predictionRoutes'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'HR Management System API is running ✅' });
