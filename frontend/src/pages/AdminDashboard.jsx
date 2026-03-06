@@ -36,6 +36,26 @@ const Input = ({ label, ...props }) => (
     </div>
 );
 
+const handleExport = async (type) => {
+    try {
+        const token = localStorage.getItem('token');
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const response = await fetch(`${baseURL}/reports/${type}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${type}-report.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showMessage(`✅ ${type} report downloaded!`);
+    } catch (err) {
+        showMessage(`❌ Export failed`);
+    }
+};
+
 const TABS = ['analytics', 'attendance', 'employees', 'tasks', 'leaves', 'salary', 'productivity'];
 const COLORS = ['#2e7df7', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -261,6 +281,25 @@ const AdminDashboard = () => {
                                     <span style={{ fontWeight: 600, fontFamily: 'var(--mono)', fontSize: '0.9rem' }}>{value}</span>
                                 </div>
                             ))}
+                        </Card>
+                        <Card style={{ marginTop: '1.5rem' }}>
+                            <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '1rem' }}>📥 Export Reports</h3>
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                {[
+                                    { type: 'attendance', label: '📋 Attendance Report', color: 'var(--accent)' },
+                                    { type: 'salary', label: '💰 Salary Report', color: 'var(--success)' },
+                                    { type: 'productivity', label: '📊 Productivity Report', color: '#a78bfa' },
+                                ].map(({ type, label, color }) => (
+                                    <button key={type} onClick={() => handleExport(type)} style={{
+                                        padding: '0.75rem 1.5rem',
+                                        background: `${color}15`,
+                                        border: `1px solid ${color}40`,
+                                        color, borderRadius: '10px',
+                                        fontWeight: 600, fontSize: '0.875rem',
+                                        cursor: 'pointer', transition: 'all 0.2s',
+                                    }}>{label}</button>
+                                ))}
+                            </div>
                         </Card>
                     </div>
                 )}
