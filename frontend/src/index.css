@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy: #0f1c2e;
+  --navy-light: #1a2f4a;
+  --navy-mid: #162438;
+  --accent: #2e7df7;
+  --accent-hover: #1a6ae0;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --text-primary: #f0f4f8;
+  --text-secondary: #8ca0b8;
+  --border: rgba(255,255,255,0.07);
+  --card: rgba(255,255,255,0.04);
+  --font: 'Outfit', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--navy);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+button { font-family: var(--font); cursor: pointer; }
+input { font-family: var(--font); }
