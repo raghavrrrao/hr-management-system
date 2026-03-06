@@ -18,7 +18,7 @@ function App() {
             <PrivateRoute><EmployeeDashboard /></PrivateRoute>
           } />
           <Route path="/admin" element={
-            <PrivateRoute adminOnly={true}><AdminDashboard /></PrivateRoute>
+            <PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>
           } />
         </Routes>
       </BrowserRouter>
