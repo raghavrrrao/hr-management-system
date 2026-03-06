@@ -36,7 +36,7 @@ const Input = ({ label, ...props }) => (
     </div>
 );
 
-const TABS = ['analytics', 'attendance', 'employees', 'tasks', 'leaves', 'salary'];
+const TABS = ['analytics', 'attendance', 'employees', 'tasks', 'leaves', 'salary', 'productivity'];
 const COLORS = ['#2e7df7', '#10b981', '#f59e0b', '#ef4444'];
 
 const AdminDashboard = () => {
@@ -46,6 +46,7 @@ const AdminDashboard = () => {
     const [employees, setEmployees] = useState([]);
     const [leaves, setLeaves] = useState([]);
     const [salaries, setSalaries] = useState([]);
+    const [productivityData, setProductivityData] = useState([]);
     const [message, setMessage] = useState('');
 
     const [taskForm, setTaskForm] = useState({ employee: '', date: '', description: '' });
@@ -65,6 +66,16 @@ const AdminDashboard = () => {
             setEmployees(empRes.data);
             setLeaves(leaveRes.data);
             setSalaries(salaryRes.data);
+
+            // Fetch productivity for each employee
+            const prodScores = await Promise.all(
+                empRes.data.map(emp =>
+                    API.get(`/productivity/${emp._id}`)
+                        .then(r => ({ ...r.data, name: emp.name, email: emp.email }))
+                        .catch(() => ({ name: emp.name, email: emp.email, productivityScore: 0, completedTasks: 0, totalWorkingHours: '0.00' }))
+                )
+            );
+            setProductivityData(prodScores);
         } catch (err) { console.error(err); }
     };
 
@@ -127,7 +138,6 @@ const AdminDashboard = () => {
     const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
     const pendingSalaries = salaries.filter(s => s.status === 'pending').length;
 
-    // Chart data
     const attendanceChartData = (() => {
         const map = {};
         attendance.forEach(a => { map[a.date] = (map[a.date] || 0) + 1; });
@@ -482,6 +492,68 @@ const AdminDashboard = () => {
                         </Card>
                     </div>
                 )}
+
+                {/* PRODUCTIVITY TAB */}
+                {tab === 'productivity' && (
+                    <Card>
+                        <h3 style={{ fontWeight: 600, marginBottom: '1.25rem' }}>Employee Productivity Scores</h3>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                            Score = Tasks Completed ÷ Working Hours
+                        </p>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                    {['Employee', 'Working Hours', 'Tasks Completed', 'Productivity Score', 'Performance'].map(h => (
+                                        <th key={h} style={{
+                                            padding: '0.75rem 1rem', textAlign: 'left',
+                                            color: 'var(--text-secondary)', fontWeight: 600,
+                                            fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em'
+                                        }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {productivityData.map((p, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '0.875rem 1rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <div style={{
+                                                    width: '34px', height: '34px', borderRadius: '50%',
+                                                    background: 'var(--accent)', display: 'flex', alignItems: 'center',
+                                                    justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0,
+                                                }}>{p.name?.[0]}</div>
+                                                <div>
+                                                    <div style={{ fontWeight: 500 }}>{p.name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.email}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)' }}>{p.totalWorkingHours}h</td>
+                                        <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)' }}>{p.completedTasks}</td>
+                                        <td style={{ padding: '0.875rem 1rem' }}>
+                                            <span style={{
+                                                padding: '0.35rem 0.85rem', borderRadius: '999px',
+                                                fontFamily: 'var(--mono)', fontWeight: 700, fontSize: '0.85rem',
+                                                background: p.productivityScore >= 1 ? 'rgba(16,185,129,0.15)' : p.productivityScore > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.1)',
+                                                color: p.productivityScore >= 1 ? 'var(--success)' : p.productivityScore > 0 ? 'var(--warning)' : 'var(--danger)',
+                                                border: `1px solid ${p.productivityScore >= 1 ? 'rgba(16,185,129,0.4)' : p.productivityScore > 0 ? 'rgba(245,158,11,0.4)' : 'rgba(239,68,68,0.3)'}`,
+                                            }}>{p.productivityScore}</span>
+                                        </td>
+                                        <td style={{ padding: '0.875rem 1rem' }}>
+                                            <Badge color={p.productivityScore >= 1 ? 'var(--success)' : p.productivityScore > 0 ? 'var(--warning)' : 'var(--danger)'}>
+                                                {p.productivityScore >= 1 ? '🔥 High' : p.productivityScore > 0 ? '⚡ Medium' : '📉 Low'}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {productivityData.length === 0 && (
+                                    <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No data yet</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </Card>
+                )}
+
             </div>
         </div>
     );

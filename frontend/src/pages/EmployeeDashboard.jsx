@@ -19,6 +19,7 @@ const EmployeeDashboard = () => {
     const [leaves, setLeaves] = useState([]);
     const [salaries, setSalaries] = useState([]);
     const [todayAttendance, setTodayAttendance] = useState(null);
+    const [productivity, setProductivity] = useState(null);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
@@ -38,6 +39,12 @@ const EmployeeDashboard = () => {
             setLeaves(leaveRes.data);
             setSalaries(salaryRes.data);
             setTodayAttendance(attRes.data.find(a => a.date === today) || null);
+
+            // Fetch productivity score
+            if (user?._id) {
+                const prodRes = await API.get(`/productivity/${user._id}`);
+                setProductivity(prodRes.data);
+            }
         } catch (err) { console.error(err); }
     };
 
@@ -78,6 +85,12 @@ const EmployeeDashboard = () => {
         textTransform: 'capitalize', transition: 'all 0.2s', cursor: 'pointer',
     });
 
+    const productivityColor = productivity?.productivityScore >= 1
+        ? 'var(--success)'
+        : productivity?.productivityScore > 0
+            ? 'var(--warning)'
+            : 'var(--danger)';
+
     return (
         <div style={{ minHeight: '100vh', background: 'var(--navy)' }}>
             <Navbar />
@@ -106,7 +119,7 @@ const EmployeeDashboard = () => {
                     {[
                         { label: 'Days Present', value: attendance.length, color: 'var(--accent)' },
                         { label: 'Pending Tasks', value: tasks.filter(t => !t.completed).length, color: 'var(--warning)' },
-                        { label: 'Leave Requests', value: leaves.length, color: '#a78bfa' },
+                        { label: 'Productivity Score', value: productivity?.productivityScore ?? '—', color: productivityColor },
                         { label: 'Net Salary', value: `₹${salaries[0]?.netSalary?.toLocaleString() || '0'}`, color: 'var(--success)' },
                     ].map(({ label, value, color }) => (
                         <Card key={label}>
@@ -162,6 +175,26 @@ const EmployeeDashboard = () => {
                                     </div>
                                 ))}
                             </div>
+                        </Card>
+
+                        {/* Productivity Card */}
+                        <Card style={{ gridColumn: 'span 2' }}>
+                            <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '1rem' }}>My Productivity</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                                {[
+                                    { label: 'Total Working Hours', value: `${productivity?.totalWorkingHours || '0.00'}h`, color: 'var(--accent)' },
+                                    { label: 'Tasks Completed', value: productivity?.completedTasks ?? 0, color: 'var(--success)' },
+                                    { label: 'Productivity Score', value: productivity?.productivityScore ?? '—', color: productivityColor },
+                                ].map(({ label, value, color }) => (
+                                    <div key={label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '1.25rem', border: '1px solid var(--border)', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '2rem', fontWeight: 700, color, fontFamily: 'var(--mono)' }}>{value}</div>
+                                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.5rem' }}>{label}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '1rem', textAlign: 'center' }}>
+                                Score = Tasks Completed ÷ Working Hours
+                            </p>
                         </Card>
                     </div>
                 )}
