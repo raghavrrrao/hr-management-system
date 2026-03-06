@@ -20,8 +20,8 @@ const Register = () => {
         const ctx = gsap.context(() => {
             gsap.to(blob1Ref.current, { y: -30, x: 20, duration: 4, repeat: -1, yoyo: true, ease: 'sine.inOut' });
             gsap.to(blob2Ref.current, { y: 25, x: -15, duration: 5, repeat: -1, yoyo: true, ease: 'sine.inOut', delay: 1 });
-            gsap.from(cardRef.current, { y: 40, opacity: 0, duration: 0.7, ease: 'power3.out' });
-            gsap.from('.reg-field', { y: 20, opacity: 0, duration: 0.5, stagger: 0.08, delay: 0.3, ease: 'power2.out' });
+            gsap.from(cardRef.current, { y: 40, duration: 0.7, ease: 'power3.out' });
+            gsap.from('.reg-field', { y: 20, duration: 0.5, stagger: 0.08, delay: 0.3, ease: 'power2.out' });
         });
         return () => ctx.revert();
     }, []);
