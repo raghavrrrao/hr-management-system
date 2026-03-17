@@ -23,6 +23,7 @@ app.use('/api/productivity', require('./routes/productivityRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/predictions', require('./routes/predictionRoutes'));
+app.use('/api/burnout', require('./routes/burnout')); // Add this line to include burnout routes
 
 app.get('/', (req, res) => {
   res.json({ message: 'HR Management System API is running ✅' });
