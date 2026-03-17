@@ -1,9 +1,18 @@
 const Task = require('../models/Task');
+const { emitToUser, emitToAdmins } = require('../socket/socketManager');
 
 const createTask = async (req, res) => {
     try {
         const { employee, date, description } = req.body;
         const task = await Task.create({ employee, date, description });
+
+        // ── Notify the assigned employee in real-time ─────────────────────────
+        emitToUser(req, employee.toString(), 'task:assigned', {
+            taskId: task._id,
+            description: task.description,
+            date: task.date,
+        });
+
         res.status(201).json(task);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -38,6 +47,14 @@ const updateTask = async (req, res) => {
         task.completed = req.body.completed ?? task.completed;
         task.description = req.body.description ?? task.description;
         await task.save();
+
+        // ── Notify all admins when an employee marks a task done/undone ───────
+        emitToAdmins(req, 'task:updated', {
+            taskId: task._id,
+            description: task.description,
+            completed: task.completed,
+            employeeId: task.employee,
+        });
 
         res.json(task);
     } catch (error) {

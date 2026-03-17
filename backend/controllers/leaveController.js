@@ -1,4 +1,5 @@
 const Leave = require('../models/Leave');
+const { emitToAdmins, emitToUser } = require('../socket/socketManager');
 
 const applyLeave = async (req, res) => {
     try {
@@ -6,6 +7,17 @@ const applyLeave = async (req, res) => {
         const leave = await Leave.create({
             employee: req.user.id, type, startDate, endDate, reason,
         });
+
+        // ── Notify all admins a new leave request has arrived ─────────────────
+        emitToAdmins(req, 'leave:requested', {
+            employeeId: req.user.id,
+            employeeName: req.user.name || 'An employee',
+            leaveType: type,
+            startDate,
+            endDate,
+            leaveId: leave._id,
+        });
+
         res.status(201).json(leave);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -36,8 +48,20 @@ const updateLeaveStatus = async (req, res) => {
     try {
         const leave = await Leave.findById(req.params.id);
         if (!leave) return res.status(404).json({ message: 'Leave not found' });
+
         leave.status = req.body.status;
         await leave.save();
+
+        // ── Notify the employee their leave was approved or rejected ──────────
+        const event = leave.status === 'approved' ? 'leave:approved' : 'leave:rejected';
+        emitToUser(req, leave.employee.toString(), event, {
+            leaveType: leave.type,
+            startDate: leave.startDate,
+            endDate: leave.endDate,
+            status: leave.status,
+            leaveId: leave._id,
+        });
+
         res.json(leave);
     } catch (error) {
         res.status(500).json({ message: error.message });

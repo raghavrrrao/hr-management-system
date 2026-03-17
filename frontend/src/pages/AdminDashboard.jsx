@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import API from '../api/axios';
 import {
@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { getAllBurnoutScores } from '../api/burnout';
 import BurnoutDashboard from './BurnoutDashboard';
+import useWsUpdate from '../hooks/useWsUpdate';
 
 // ── Responsive hook ──────────────────────────────────────────────────────────
 const useWindowWidth = () => {
@@ -93,7 +94,7 @@ const AdminDashboard = () => {
     const [taskForm, setTaskForm] = useState({ employee: '', date: '', description: '' });
     const [salaryForm, setSalaryForm] = useState({ employee: '', month: '', basicSalary: '', bonus: '', deductions: '' });
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             const [attRes, taskRes, empRes, leaveRes, salaryRes] = await Promise.all([
                 API.get('/attendance'),
@@ -131,9 +132,16 @@ const AdminDashboard = () => {
                 .then(res => setBurnoutSummary(res.data.summary))
                 .catch(() => { });
         } catch (err) { console.error(err); }
-    };
+    }, []);
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    // ── Real-time updates via WebSocket ───────────────────────────────────────
+    // Fires fetchData when employee checks in/out, requests leave, or burnout alert fires
+    useWsUpdate(
+        ['leave:requested', 'attendance:checkin', 'attendance:checkout', 'burnout:alert', 'task:updated'],
+        fetchData
+    );
 
     const showMessage = (msg) => { setMessage(msg); setTimeout(() => setMessage(''), 3500); };
 

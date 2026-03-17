@@ -11,13 +11,12 @@ const Login = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
 
-    const cardRef  = useRef(null);
+    const cardRef = useRef(null);
     const blob1Ref = useRef(null);
     const blob2Ref = useRef(null);
 
     useEffect(() => {
         const ctx = gsap.context(() => {
-            // Blob float animation
             gsap.to(blob1Ref.current, {
                 y: -30, x: 20, duration: 4,
                 repeat: -1, yoyo: true, ease: 'sine.inOut',
@@ -26,8 +25,6 @@ const Login = () => {
                 y: 25, x: -15, duration: 5,
                 repeat: -1, yoyo: true, ease: 'sine.inOut', delay: 1,
             });
-
-            // Card entrance
             gsap.from(cardRef.current, {
                 y: 50, opacity: 0, duration: 0.8,
                 ease: 'power3.out',
@@ -47,7 +44,20 @@ const Login = () => {
         setError('');
         try {
             const { data } = await API.post('/auth/login', form);
+
+            // ── Save token (your existing logic) ──
             login(data);
+
+            // ── Save user object for SocketContext ──
+            // Handles both { _id, role, name } and { user: { _id, role, name } }
+            const userObj = data.user || data;
+            localStorage.setItem('user', JSON.stringify({
+                _id: userObj._id || userObj.id,
+                id: userObj._id || userObj.id,
+                role: userObj.role,
+                name: userObj.name,
+            }));
+
             gsap.to(cardRef.current, {
                 y: -30, opacity: 0, duration: 0.4, ease: 'power2.in',
                 onComplete: () => navigate(data.role === 'admin' ? '/admin' : '/dashboard'),
@@ -122,7 +132,7 @@ const Login = () => {
 
                 <form onSubmit={handleSubmit}>
                     {[
-                        { field: 'email',    type: 'email',    label: 'Email',    placeholder: 'you@example.com' },
+                        { field: 'email', type: 'email', label: 'Email', placeholder: 'you@example.com' },
                         { field: 'password', type: 'password', label: 'Password', placeholder: '••••••••' },
                     ].map(({ field, type, label, placeholder }) => (
                         <div key={field} className="login-field" style={{ marginBottom: '1.2rem' }}>
@@ -144,6 +154,7 @@ const Login = () => {
                                     borderRadius: '10px', color: '#0f172a',
                                     fontSize: '0.95rem', outline: 'none',
                                     transition: 'border-color 0.2s, box-shadow 0.2s',
+                                    boxSizing: 'border-box',
                                 }}
                                 onFocus={e => {
                                     e.target.style.borderColor = '#2e7df7';
@@ -167,6 +178,7 @@ const Login = () => {
                         boxShadow: '0 4px 20px rgba(46,125,247,0.30)',
                         transition: 'all 0.3s',
                         marginTop: '0.5rem',
+                        cursor: loading ? 'not-allowed' : 'pointer',
                     }}>
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>

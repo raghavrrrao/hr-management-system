@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import API from '../api/axios';
+import useWsUpdate from '../hooks/useWsUpdate';
+import BurnoutWidget from '../components/BurnoutWidget';
 
 const Card = ({ children, style = {} }) => (
     <div style={{
@@ -21,25 +23,25 @@ const Badge = ({ children, color }) => (
     }}>{children}</span>
 );
 
-const TABS = ['overview', 'attendance', 'tasks', 'leaves', 'salary'];
+const TABS = ['overview', 'attendance', 'tasks', 'leaves', 'salary', 'wellness'];
 
 const EmployeeDashboard = () => {
     const { user } = useAuth();
     const [tab, setTab] = useState('overview');
-    const [attendance, setAttendance]     = useState([]);
-    const [tasks, setTasks]               = useState([]);
-    const [leaves, setLeaves]             = useState([]);
-    const [salaries, setSalaries]         = useState([]);
+    const [attendance, setAttendance] = useState([]);
+    const [tasks, setTasks] = useState([]);
+    const [leaves, setLeaves] = useState([]);
+    const [salaries, setSalaries] = useState([]);
     const [todayAttendance, setTodayAttendance] = useState(null);
     const [productivity, setProductivity] = useState(null);
-    const [loading, setLoading]           = useState(false);
-    const [locating, setLocating]         = useState(false);
-    const [message, setMessage]           = useState('');
-    const [leaveForm, setLeaveForm]       = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
+    const [loading, setLoading] = useState(false);
+    const [locating, setLocating] = useState(false);
+    const [message, setMessage] = useState('');
+    const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
 
     const today = new Date().toISOString().split('T')[0];
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             const [attRes, taskRes, leaveRes, salaryRes] = await Promise.all([
                 API.get('/attendance/my'),
@@ -58,13 +60,22 @@ const EmployeeDashboard = () => {
                 setProductivity(prodRes.data);
             }
         } catch (err) { console.error(err); }
-    };
+    }, [user?._id, today]);
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    // ── Real-time updates via WebSocket ───────────────────────────────────────
+    // When admin assigns a task → re-fetch so it appears instantly
+    // When admin approves/rejects leave → re-fetch leave list
+    // When admin marks salary as paid → re-fetch salary records
+    useWsUpdate(
+        ['task:assigned', 'task:updated', 'leave:approved', 'leave:rejected', 'salary:paid'],
+        fetchData
+    );
 
     const showMessage = (msg) => { setMessage(msg); setTimeout(() => setMessage(''), 4000); };
 
-    // ── Geo check-in ──
+    // ── Geo check-in ──────────────────────────────────────────────────────────
     const handleCheckIn = async () => {
         setLocating(true);
         if (!navigator.geolocation) {
@@ -129,6 +140,7 @@ const EmployeeDashboard = () => {
         color: active ? 'white' : '#64748b',
         backdropFilter: 'blur(8px)',
         textTransform: 'capitalize', transition: 'all 0.2s', cursor: 'pointer',
+        whiteSpace: 'nowrap',
     });
 
     const productivityColor = productivity?.productivityScore >= 1
@@ -136,6 +148,18 @@ const EmployeeDashboard = () => {
 
     const checkInBusy = loading || locating || !!todayAttendance;
     const checkOutBusy = loading || !todayAttendance || !!todayAttendance?.checkOut;
+
+    const inputStyle = {
+        width: '100%', padding: '0.75rem 1rem',
+        background: 'rgba(255,255,255,0.8)', border: '1px solid rgba(203,213,225,0.8)',
+        borderRadius: '10px', color: '#0f172a', fontSize: '0.875rem',
+        outline: 'none', boxSizing: 'border-box',
+    };
+    const labelStyle = {
+        display: 'block', fontSize: '0.75rem', fontWeight: 700,
+        color: '#64748b', marginBottom: '0.4rem',
+        textTransform: 'uppercase', letterSpacing: '0.06em',
+    };
 
     return (
         <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #eff6ff 0%, #eef2ff 60%, #e0e7ff 100%)' }}>
@@ -163,12 +187,12 @@ const EmployeeDashboard = () => {
                 </div>
 
                 {/* Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                     {[
-                        { label: 'Days Present',      value: attendance.length,                              color: '#2e7df7' },
-                        { label: 'Pending Tasks',      value: tasks.filter(t => !t.completed).length,         color: '#f59e0b' },
-                        { label: 'Productivity Score', value: productivity?.productivityScore ?? '—',          color: productivityColor },
-                        { label: 'Latest Net Salary',  value: `₹${salaries[0]?.netSalary?.toLocaleString() || '0'}`, color: '#10b981' },
+                        { label: 'Days Present', value: attendance.length, color: '#2e7df7' },
+                        { label: 'Pending Tasks', value: tasks.filter(t => !t.completed).length, color: '#f59e0b' },
+                        { label: 'Productivity Score', value: productivity?.productivityScore ?? '—', color: productivityColor },
+                        { label: 'Latest Net Salary', value: `₹${salaries[0]?.netSalary?.toLocaleString() || '0'}`, color: '#10b981' },
                     ].map(({ label, value, color }) => (
                         <Card key={label}>
                             <div style={{ fontSize: '1.75rem', fontWeight: 700, color, fontFamily: 'var(--mono)' }}>{value}</div>
@@ -177,21 +201,30 @@ const EmployeeDashboard = () => {
                     ))}
                 </div>
 
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                    {TABS.map(t => <button key={t} onClick={() => setTab(t)} style={btnStyle(tab === t)}>{t}</button>)}
+                {/* Tabs — scrollable on mobile */}
+                <div style={{
+                    display: 'flex', gap: '0.5rem', marginBottom: '1.5rem',
+                    overflowX: 'auto', paddingBottom: '4px',
+                    scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+                }}>
+                    {TABS.map(t => (
+                        <button key={t} onClick={() => setTab(t)} style={btnStyle(tab === t)}>
+                            {t === 'wellness' ? '🧠 Wellness' : t}
+                        </button>
+                    ))}
                 </div>
 
                 {/* OVERVIEW TAB */}
                 {tab === 'overview' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                        {/* Today's Attendance */}
                         <Card>
                             <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '1rem', color: '#0f172a' }}>Today's Attendance</h3>
                             <div style={{ background: 'rgba(241,245,249,0.7)', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.25rem', border: '1px solid rgba(226,232,240,0.7)' }}>
                                 {[
-                                    { label: 'Check In',  value: todayAttendance?.checkIn  ? new Date(todayAttendance.checkIn).toLocaleTimeString()  : '--:--', color: '#10b981' },
+                                    { label: 'Check In', value: todayAttendance?.checkIn ? new Date(todayAttendance.checkIn).toLocaleTimeString() : '--:--', color: '#10b981' },
                                     { label: 'Check Out', value: todayAttendance?.checkOut ? new Date(todayAttendance.checkOut).toLocaleTimeString() : '--:--', color: '#ef4444' },
-                                    { label: 'Hours',     value: `${todayAttendance?.workingHours || '0.00'}h`,                                                 color: '#2e7df7' },
+                                    { label: 'Hours', value: `${todayAttendance?.workingHours || '0.00'}h`, color: '#2e7df7' },
                                 ].map(({ label, value, color }) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                                         <span style={{ color: '#64748b', fontSize: '0.875rem' }}>{label}</span>
@@ -200,7 +233,6 @@ const EmployeeDashboard = () => {
                                 ))}
                             </div>
 
-                            {/* Geo check-in notice */}
                             {!todayAttendance && (
                                 <div style={{
                                     background: 'rgba(46,125,247,0.07)', border: '1px solid rgba(46,125,247,0.2)',
@@ -212,35 +244,30 @@ const EmployeeDashboard = () => {
                             )}
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                <button
-                                    onClick={handleCheckIn}
-                                    disabled={checkInBusy}
-                                    style={{
-                                        padding: '0.75rem',
-                                        background: checkInBusy ? 'rgba(241,245,249,0.8)' : 'rgba(16,185,129,0.12)',
-                                        border: `1px solid ${checkInBusy ? 'rgba(226,232,240,0.8)' : 'rgba(16,185,129,0.35)'}`,
-                                        color: checkInBusy ? '#94a3b8' : '#10b981',
-                                        borderRadius: '10px', fontWeight: 600, fontSize: '0.875rem',
-                                        cursor: checkInBusy ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                                    }}>
+                                <button onClick={handleCheckIn} disabled={checkInBusy} style={{
+                                    padding: '0.75rem',
+                                    background: checkInBusy ? 'rgba(241,245,249,0.8)' : 'rgba(16,185,129,0.12)',
+                                    border: `1px solid ${checkInBusy ? 'rgba(226,232,240,0.8)' : 'rgba(16,185,129,0.35)'}`,
+                                    color: checkInBusy ? '#94a3b8' : '#10b981',
+                                    borderRadius: '10px', fontWeight: 600, fontSize: '0.875rem',
+                                    cursor: checkInBusy ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                                }}>
                                     {locating ? '📍 Locating...' : todayAttendance ? '✓ Checked In' : '📍 Check In'}
                                 </button>
-                                <button
-                                    onClick={handleCheckOut}
-                                    disabled={checkOutBusy}
-                                    style={{
-                                        padding: '0.75rem',
-                                        background: checkOutBusy ? 'rgba(241,245,249,0.8)' : 'rgba(239,68,68,0.10)',
-                                        border: `1px solid ${checkOutBusy ? 'rgba(226,232,240,0.8)' : 'rgba(239,68,68,0.35)'}`,
-                                        color: checkOutBusy ? '#94a3b8' : '#ef4444',
-                                        borderRadius: '10px', fontWeight: 600, fontSize: '0.875rem',
-                                        cursor: checkOutBusy ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                                    }}>
+                                <button onClick={handleCheckOut} disabled={checkOutBusy} style={{
+                                    padding: '0.75rem',
+                                    background: checkOutBusy ? 'rgba(241,245,249,0.8)' : 'rgba(239,68,68,0.10)',
+                                    border: `1px solid ${checkOutBusy ? 'rgba(226,232,240,0.8)' : 'rgba(239,68,68,0.35)'}`,
+                                    color: checkOutBusy ? '#94a3b8' : '#ef4444',
+                                    borderRadius: '10px', fontWeight: 600, fontSize: '0.875rem',
+                                    cursor: checkOutBusy ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                                }}>
                                     {loading ? 'Checking out...' : 'Check Out'}
                                 </button>
                             </div>
                         </Card>
 
+                        {/* My Tasks */}
                         <Card>
                             <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '1rem', color: '#0f172a' }}>My Tasks</h3>
                             <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -271,11 +298,11 @@ const EmployeeDashboard = () => {
                         {/* Productivity */}
                         <Card style={{ gridColumn: 'span 2' }}>
                             <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', fontSize: '1rem', color: '#0f172a' }}>My Productivity</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
                                 {[
                                     { label: 'Total Working Hours', value: `${productivity?.totalWorkingHours || '0.00'}h`, color: '#2e7df7' },
-                                    { label: 'Tasks Completed',     value: productivity?.completedTasks ?? 0,               color: '#10b981' },
-                                    { label: 'Productivity Score',  value: productivity?.productivityScore ?? '—',           color: productivityColor },
+                                    { label: 'Tasks Completed', value: productivity?.completedTasks ?? 0, color: '#10b981' },
+                                    { label: 'Productivity Score', value: productivity?.productivityScore ?? '—', color: productivityColor },
                                 ].map(({ label, value, color }) => (
                                     <div key={label} style={{ background: 'rgba(241,245,249,0.7)', borderRadius: '12px', padding: '1.25rem', border: '1px solid rgba(226,232,240,0.7)', textAlign: 'center' }}>
                                         <div style={{ fontSize: '2rem', fontWeight: 700, color, fontFamily: 'var(--mono)' }}>{value}</div>
@@ -299,17 +326,17 @@ const EmployeeDashboard = () => {
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid rgba(226,232,240,0.8)' }}>
                                         {['Date', 'Check In', 'Check Out', 'Hours', 'Status'].map(h => (
-                                            <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                                            <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {attendance.map(record => (
                                         <tr key={record._id} style={{ borderBottom: '1px solid rgba(226,232,240,0.6)' }}>
-                                            <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a' }}>{record.date}</td>
-                                            <td style={{ padding: '0.875rem 1rem', color: '#10b981', fontFamily: 'var(--mono)', fontSize: '0.8rem' }}>{record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-'}</td>
-                                            <td style={{ padding: '0.875rem 1rem', color: '#ef4444', fontFamily: 'var(--mono)', fontSize: '0.8rem' }}>{record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : '-'}</td>
-                                            <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a' }}>{record.workingHours}h</td>
+                                            <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a', whiteSpace: 'nowrap' }}>{record.date}</td>
+                                            <td style={{ padding: '0.875rem 1rem', color: '#10b981', fontFamily: 'var(--mono)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-'}</td>
+                                            <td style={{ padding: '0.875rem 1rem', color: '#ef4444', fontFamily: 'var(--mono)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : '-'}</td>
+                                            <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a', whiteSpace: 'nowrap' }}>{record.workingHours}h</td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <Badge color={record.checkOut ? '#10b981' : '#f59e0b'}>{record.checkOut ? 'Complete' : 'Incomplete'}</Badge>
                                             </td>
@@ -340,7 +367,7 @@ const EmployeeDashboard = () => {
                                     }}>
                                         {task.completed && <span style={{ fontSize: '11px', color: 'white' }}>✓</span>}
                                     </div>
-                                    <div style={{ flex: 1 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: '0.9rem', fontWeight: 500, textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? '#94a3b8' : '#0f172a' }}>{task.description}</div>
                                         <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>{task.date}</div>
                                     </div>
@@ -354,7 +381,7 @@ const EmployeeDashboard = () => {
 
                 {/* LEAVES TAB */}
                 {tab === 'leaves' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '1.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(280px,380px)', gap: '1.5rem' }}>
                         <Card>
                             <h3 style={{ fontWeight: 600, marginBottom: '1.25rem', color: '#0f172a' }}>My Leave Requests</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -375,25 +402,24 @@ const EmployeeDashboard = () => {
                             <h3 style={{ fontWeight: 600, marginBottom: '1.5rem', color: '#0f172a' }}>Apply for Leave</h3>
                             <form onSubmit={handleLeaveApply}>
                                 <div style={{ marginBottom: '1.1rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Leave Type</label>
-                                    <select value={leaveForm.type} onChange={e => setLeaveForm({ ...leaveForm, type: e.target.value })}
-                                        style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.8)', border: '1px solid rgba(203,213,225,0.8)', borderRadius: '10px', color: '#0f172a', fontSize: '0.875rem', outline: 'none' }}>
+                                    <label style={labelStyle}>Leave Type</label>
+                                    <select value={leaveForm.type} onChange={e => setLeaveForm({ ...leaveForm, type: e.target.value })} style={inputStyle}>
                                         {['casual', 'sick', 'annual', 'other'].map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
                                 {[{ label: 'Start Date', key: 'startDate' }, { label: 'End Date', key: 'endDate' }].map(({ label, key }) => (
                                     <div key={key} style={{ marginBottom: '1.1rem' }}>
-                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</label>
-                                        <input type="date" value={leaveForm[key]} onChange={e => setLeaveForm({ ...leaveForm, [key]: e.target.value })} required
-                                            style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.8)', border: '1px solid rgba(203,213,225,0.8)', borderRadius: '10px', color: '#0f172a', fontSize: '0.875rem', outline: 'none', colorScheme: 'light' }} />
+                                        <label style={labelStyle}>{label}</label>
+                                        <input type="date" value={leaveForm[key]} onChange={e => setLeaveForm({ ...leaveForm, [key]: e.target.value })} required style={{ ...inputStyle, colorScheme: 'light' }} />
                                     </div>
                                 ))}
                                 <div style={{ marginBottom: '1.25rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reason</label>
-                                    <textarea value={leaveForm.reason} onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })} required rows={3}
-                                        style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.8)', border: '1px solid rgba(203,213,225,0.8)', borderRadius: '10px', color: '#0f172a', fontSize: '0.875rem', outline: 'none', resize: 'vertical' }} />
+                                    <label style={labelStyle}>Reason</label>
+                                    <textarea value={leaveForm.reason} onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })} required rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
                                 </div>
-                                <button type="submit" style={{ width: '100%', padding: '0.875rem', background: 'linear-gradient(135deg, #2e7df7, #1a6ae0)', border: 'none', borderRadius: '10px', color: 'white', fontSize: '0.95rem', fontWeight: 600, boxShadow: '0 4px 14px rgba(46,125,247,0.25)' }}>Apply Leave</button>
+                                <button type="submit" style={{ width: '100%', padding: '0.875rem', background: 'linear-gradient(135deg, #2e7df7, #1a6ae0)', border: 'none', borderRadius: '10px', color: 'white', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 14px rgba(46,125,247,0.25)' }}>
+                                    Apply Leave
+                                </button>
                             </form>
                         </Card>
                     </div>
@@ -408,14 +434,14 @@ const EmployeeDashboard = () => {
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid rgba(226,232,240,0.8)' }}>
                                         {['Month', 'Basic', 'Bonus', 'Deductions', 'Net Salary', 'Status'].map(h => (
-                                            <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                                            <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {salaries.map(s => (
                                         <tr key={s._id} style={{ borderBottom: '1px solid rgba(226,232,240,0.6)' }}>
-                                            <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a' }}>{s.month}</td>
+                                            <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a', whiteSpace: 'nowrap' }}>{s.month}</td>
                                             <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#0f172a' }}>₹{s.basicSalary.toLocaleString()}</td>
                                             <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#10b981' }}>+₹{s.bonus.toLocaleString()}</td>
                                             <td style={{ padding: '0.875rem 1rem', fontFamily: 'var(--mono)', fontSize: '0.8rem', color: '#ef4444' }}>-₹{s.deductions.toLocaleString()}</td>
@@ -433,6 +459,10 @@ const EmployeeDashboard = () => {
                         </div>
                     </Card>
                 )}
+
+                {/* WELLNESS TAB — Burnout self-view */}
+                {tab === 'wellness' && <BurnoutWidget />}
+
             </div>
         </div>
     );

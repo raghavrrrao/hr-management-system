@@ -1,4 +1,5 @@
 const Salary = require('../models/Salary');
+const { emitToUser } = require('../socket/socketManager');
 
 const createSalary = async (req, res) => {
     try {
@@ -35,8 +36,18 @@ const updateSalaryStatus = async (req, res) => {
     try {
         const salary = await Salary.findById(req.params.id);
         if (!salary) return res.status(404).json({ message: 'Salary record not found' });
+
         salary.status = req.body.status;
         await salary.save();
+
+        // ── Notify the employee when their salary is marked as paid ──────────
+        if (salary.status === 'paid') {
+            emitToUser(req, salary.employee.toString(), 'salary:paid', {
+                month: salary.month,
+                netSalary: salary.netSalary,
+            });
+        }
+
         res.json(salary);
     } catch (error) {
         res.status(500).json({ message: error.message });
