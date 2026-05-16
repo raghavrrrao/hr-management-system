@@ -1,6 +1,17 @@
 const Attendance = require('../models/Attendance');
-const Settings = require('../models/Settings');
 const { emitToAdmins } = require('../socket/socketManager');
+
+// Haversine formula
+const getDistanceMeters = (lat1, lng1, lat2, lng2) => {
+    const R = 6371000;
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 const checkIn = async (req, res) => {
     try {
@@ -18,15 +29,20 @@ const checkIn = async (req, res) => {
         const latNum = parseFloat(lat);
         const lngNum = parseFloat(lng);
 
-        const settings = await Settings.findOne();
-        if (!settings) return res.status(400).json({ message: 'Office location has not been set by admin yet' });
+        // Read fixed office coordinates and radius from environment variables
+        const officeLat = parseFloat(process.env.OFFICE_LAT);
+        const officeLng = parseFloat(process.env.OFFICE_LNG);
+        const allowedRadius = parseFloat(process.env.ALLOWED_RADIUS) || 50; // default 50 meters
 
-        const distance = getDistanceMeters(latNum, lngNum, settings.officeLat, settings.officeLng);
-        const radius = parseFloat(process.env.CHECKIN_RADIUS_METERS) || 50;
+        if (isNaN(officeLat) || isNaN(officeLng)) {
+            return res.status(500).json({ message: 'Office location is not configured on the server.' });
+        }
 
-        if (distance > radius) {
+        const distance = getDistanceMeters(latNum, lngNum, officeLat, officeLng);
+
+        if (distance > allowedRadius) {
             return res.status(403).json({
-                message: `You are ${Math.round(distance)}m away from the office. Must be within ${radius}m to check in.`,
+                message: `You are ${Math.round(distance)}m away from the office. Must be within ${allowedRadius}m to check in.`,
             });
         }
 
@@ -36,7 +52,6 @@ const checkIn = async (req, res) => {
             checkIn: new Date(),
         });
 
-        // ── Notify all admins in real-time ────────────────────────────────────
         emitToAdmins(req, 'attendance:checkin', {
             employeeId: req.user.id,
             employeeName: req.user.name || 'An employee',
@@ -48,18 +63,6 @@ const checkIn = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
-};
-
-// Haversine formula
-const getDistanceMeters = (lat1, lng1, lat2, lng2) => {
-    const R = 6371000;
-    const toRad = (deg) => (deg * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-    const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
 const checkOut = async (req, res) => {
@@ -74,7 +77,6 @@ const checkOut = async (req, res) => {
         attendance.workingHours = ((attendance.checkOut - attendance.checkIn) / 3600000).toFixed(2);
         await attendance.save();
 
-        // ── Notify all admins in real-time ────────────────────────────────────
         emitToAdmins(req, 'attendance:checkout', {
             employeeId: req.user.id,
             employeeName: req.user.name || 'An employee',

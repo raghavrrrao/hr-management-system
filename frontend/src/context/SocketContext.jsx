@@ -3,21 +3,16 @@ import { io } from 'socket.io-client';
 
 const SocketContext = createContext(null);
 
-// ── Event → human-readable toast message map ──────────────────────────────────
+// Event map for toasts (same as before)
 const EVENT_MESSAGES = {
-    // Admin receives
     'leave:requested': (d) => `📋 ${d.employeeName} requested ${d.leaveType} leave`,
     'attendance:checkin': (d) => `✅ ${d.employeeName} checked in`,
     'attendance:checkout': (d) => `🏁 ${d.employeeName} checked out (${d.workingHours}h)`,
-
-    // Employee receives
     'task:assigned': (d) => `📌 New task assigned: "${d.description}"`,
     'leave:approved': (d) => `✅ Your ${d.leaveType} leave was approved`,
     'leave:rejected': (d) => `❌ Your ${d.leaveType} leave was rejected`,
     'salary:paid': (d) => `💰 Your salary for ${d.month} has been paid`,
     'task:updated': (d) => `🔄 Task "${d.description}" was updated`,
-
-    // Admin receives
     'burnout:alert': (d) => `🔥 ${d.employeeName} has reached High burnout risk (score: ${d.score})`,
 };
 
@@ -26,11 +21,9 @@ export const SocketProvider = ({ children }) => {
     const [connected, setConnected] = useState(false);
     const [toasts, setToasts] = useState([]);
 
-    // ── Toast helpers ───────────────────────────────────────────────────────────
     const addToast = useCallback((message, type = 'info') => {
         const id = Date.now() + Math.random();
         setToasts((prev) => [...prev, { id, message, type }]);
-        // Auto-dismiss after 4.5s
         setTimeout(() => {
             setToasts((prev) => prev.filter((t) => t.id !== id));
         }, 4500);
@@ -40,7 +33,6 @@ export const SocketProvider = ({ children }) => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
 
-    // ── Connect / disconnect based on auth ────────────────────────────────────
     useEffect(() => {
         const token = localStorage.getItem('token');
         const user = JSON.parse(localStorage.getItem('user') || 'null');
@@ -51,47 +43,60 @@ export const SocketProvider = ({ children }) => {
         const socket = io(SOCKET_URL, {
             transports: ['websocket', 'polling'],
             auth: { token },
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
         });
 
         socketRef.current = socket;
 
         socket.on('connect', () => {
             setConnected(true);
-            // Register this socket to user's room + role room
+            // Register after connection (and after reconnection)
             socket.emit('register', { userId: user._id || user.id, role: user.role });
         });
 
-        socket.on('disconnect', () => setConnected(false));
+        socket.on('disconnect', () => {
+            setConnected(false);
+            console.log('Socket disconnected');
+        });
 
-        // ── Attach all event listeners ─────────────────────────────────────────
+        socket.on('reconnect', (attemptNumber) => {
+            console.log(`Socket reconnected after ${attemptNumber} attempts`);
+            // Re-register after reconnection
+            const freshUser = JSON.parse(localStorage.getItem('user') || 'null');
+            if (freshUser) {
+                socket.emit('register', { userId: freshUser._id || freshUser.id, role: freshUser.role });
+            }
+        });
+
+        // Attach all event listeners from EVENT_MESSAGES
         Object.keys(EVENT_MESSAGES).forEach((event) => {
             socket.on(event, (data) => {
                 const message = EVENT_MESSAGES[event](data);
                 const type =
                     event.includes('rejected') ? 'error' :
-                        event.includes('alert') ? 'warning' :
-                            event.includes('approved') || event.includes('paid') || event.includes('checkin') ? 'success' :
-                                'info';
+                    event.includes('alert') ? 'warning' :
+                    event.includes('approved') || event.includes('paid') || event.includes('checkin') ? 'success' : 'info';
                 addToast(message, type);
 
-                // Dispatch a custom DOM event so pages can react (e.g. re-fetch data)
+                // Dispatch custom event for useWsUpdate
                 window.dispatchEvent(new CustomEvent('ws:update', { detail: { event, data } }));
             });
         });
 
-        // ── Role change: update localStorage + force redirect ─────────────────
-        // Fires when admin promotes or demotes this user
+        // Role update event
         socket.on('role:updated', (data) => {
             const stored = JSON.parse(localStorage.getItem('user') || 'null');
             if (stored) {
                 stored.role = data.newRole;
                 localStorage.setItem('user', JSON.stringify(stored));
             }
-            // Show a toast then redirect to the correct dashboard after 2s
             addToast(
                 data.newRole === 'admin'
-                    ? `🎉 You've been promoted to Admin! Redirecting...`
-                    : `ℹ️ Your role has been changed to Employee. Redirecting...`,
+                    ? `You've been promoted to Admin! Redirecting...`
+                    : `Your role has been changed to Employee. Redirecting...`,
                 data.newRole === 'admin' ? 'success' : 'info'
             );
             setTimeout(() => {
@@ -103,7 +108,7 @@ export const SocketProvider = ({ children }) => {
             socket.disconnect();
             socketRef.current = null;
         };
-    }, []); // runs once on mount — user must be logged in by the time App mounts
+    }, [addToast]);
 
     return (
         <SocketContext.Provider value={{ socket: socketRef.current, connected, toasts, addToast, dismissToast }}>

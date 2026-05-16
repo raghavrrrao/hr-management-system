@@ -35,7 +35,7 @@ const SIGNAL_LABELS = {
 const SummaryCard = ({ label, value, color, emoji }) => (
     <div style={{
         background: "#fff",
-        borderRadius: 12,
+        borderRadius: 16,
         padding: "18px 20px",
         boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
         borderLeft: `4px solid ${color}`,
@@ -74,7 +74,6 @@ const EmployeeRow = ({ record, onSelect, isSelected }) => (
             </span>
         </td>
         <td style={tdStyle}>
-            {/* Mini score bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{
                     flex: 1,
@@ -122,7 +121,7 @@ const DetailPanel = ({ record, onClose }) => {
             width: 380,
             background: "#fff",
             boxShadow: "-4px 0 24px rgba(0,0,0,0.1)",
-            zIndex: 100,
+            zIndex: 1000,
             overflowY: "auto",
             padding: "28px 24px",
         }}>
@@ -143,12 +142,10 @@ const DetailPanel = ({ record, onClose }) => {
                 >✕ Close</button>
             </div>
 
-            {/* Meter */}
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
                 <BurnoutMeter score={record.score} riskLevel={record.riskLevel} size={140} />
             </div>
 
-            {/* Signals */}
             <div style={{ marginBottom: 20 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: "#374151" }}>Signal Breakdown</p>
                 {Object.entries(record.signals || {}).map(([key, val]) => {
@@ -172,7 +169,6 @@ const DetailPanel = ({ record, onClose }) => {
                 })}
             </div>
 
-            {/* Suggestions */}
             <div style={{ background: "#f9fafb", borderRadius: 10, padding: "12px 14px" }}>
                 <p style={{ fontWeight: 700, fontSize: 13, margin: "0 0 8px", color: "#374151" }}>
                     💡 Recommended Actions
@@ -205,25 +201,23 @@ const BurnoutDashboard = () => {
     }, []);
 
     if (loading) return (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
+        <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
             ⏳ Analysing team wellness data…
         </div>
     );
 
     if (error) return (
-        <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>{error}</div>
+        <div style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>{error}</div>
     );
 
     const { summary, scores } = data;
 
-    // Pie chart data
     const pieData = [
         { name: "Low", value: summary.low, color: RISK_COLORS.Low },
         { name: "Moderate", value: summary.moderate, color: RISK_COLORS.Moderate },
         { name: "High", value: summary.high, color: RISK_COLORS.High },
     ].filter((d) => d.value > 0);
 
-    // Bar chart — top 10 by score
     const barData = [...scores]
         .slice(0, 10)
         .map((s) => ({
@@ -232,15 +226,15 @@ const BurnoutDashboard = () => {
             fill: RISK_COLORS[s.riskLevel],
         }));
 
-    // Filtered table
     const filtered = scores.filter((s) => {
         const matchRisk = filterRisk === "All" || s.riskLevel === filterRisk;
         const matchName = (s.employee?.name || "").toLowerCase().includes(search.toLowerCase());
         return matchRisk && matchName;
     });
 
+    // Responsive breakpoints via CSS media queries or simple container width – we rely on parent's width
     return (
-        <div style={{ padding: "24px 28px", fontFamily: "inherit", maxWidth: 1100 }}>
+        <div style={{ width: "100%", fontFamily: "inherit" }}>
             {/* Title */}
             <div style={{ marginBottom: 24 }}>
                 <h2 style={{ margin: 0, fontWeight: 800, fontSize: 22, color: "#111827" }}>
@@ -262,8 +256,6 @@ const BurnoutDashboard = () => {
 
             {/* Charts row */}
             <div style={{ display: "flex", gap: 20, marginBottom: 28, flexWrap: "wrap" }}>
-
-                {/* Bar chart */}
                 <div style={{ ...chartCard, flex: 2, minWidth: 280 }}>
                     <p style={chartTitle}>Top 10 Highest Burnout Scores</p>
                     <ResponsiveContainer width="100%" height={180}>
@@ -280,7 +272,6 @@ const BurnoutDashboard = () => {
                     </ResponsiveContainer>
                 </div>
 
-                {/* Pie chart */}
                 <div style={{ ...chartCard, flex: 1, minWidth: 200 }}>
                     <p style={chartTitle}>Risk Distribution</p>
                     <ResponsiveContainer width="100%" height={180}>
@@ -306,8 +297,7 @@ const BurnoutDashboard = () => {
             </div>
 
             {/* Employee table */}
-            <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.07)" }}>
-                {/* Table controls */}
+            <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.07)", width: "100%" }}>
                 <div style={{
                     padding: "16px 20px",
                     borderBottom: "1px solid #f3f4f6",
@@ -347,9 +337,8 @@ const BurnoutDashboard = () => {
                     </span>
                 </div>
 
-                {/* Table */}
-                <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={{ overflowX: "auto", width: "100%" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
                         <thead>
                             <tr style={{ background: "#f9fafb" }}>
                                 {["Employee", "Risk", "Score", "Avg Hours", "Task Rate"].map((h) => (
@@ -379,13 +368,12 @@ const BurnoutDashboard = () => {
                 </div>
             </div>
 
-            {/* Side detail panel */}
             <DetailPanel record={selected} onClose={() => setSelected(null)} />
         </div>
     );
 };
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles (no max-width, full width) ────────────────────────────────────────
 
 const thStyle = {
     padding: "10px 16px",
@@ -408,6 +396,7 @@ const chartCard = {
     borderRadius: 14,
     padding: "16px 18px",
     boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+    flex: "1",
 };
 
 const chartTitle = {

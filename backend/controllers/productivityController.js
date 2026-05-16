@@ -37,6 +37,48 @@ const getProductivityScore = async (req, res) => {
     }
 };
 
+const getExpectedProgress = (task, currentDate) => {
+    const start = new Date(task.startDate);
+    const due = new Date(task.dueDate);
+    if (currentDate <= start) return 0;
+    if (currentDate >= due) return 100;
+    const totalDuration = due - start;
+    const elapsed = currentDate - start;
+    return (elapsed / totalDuration) * 100;
+};
+
+const getProductivityScore = async (req, res) => {
+    try {
+        const employeeId = req.params.employeeId;
+        const attendanceRecords = await Attendance.find({ employee: employeeId });
+        const totalWorkingHours = attendanceRecords.reduce((acc, r) => acc + (r.workingHours || 0), 0);
+        const tasks = await Task.find({ assignedTo: employeeId });
+        let totalExpected = 0, totalActual = 0, totalWeight = 0, overdue = 0;
+        const now = new Date();
+        for (const task of tasks) {
+            const expected = getExpectedProgress(task, now);
+            totalExpected += expected * (task.workloadWeight || 1);
+            totalActual += task.progress * (task.workloadWeight || 1);
+            totalWeight += task.workloadWeight || 1;
+            if (task.dueDate < now && task.progress < 100 && task.status !== 'completed') overdue++;
+        }
+        const efficiency = totalExpected > 0 ? totalActual / totalExpected : 1;
+        let score = efficiency * 100;
+        score = Math.max(0, score - (overdue * 5));
+        score = Math.min(100, score);
+        res.json({
+            employeeId,
+            totalWorkingHours: totalWorkingHours.toFixed(2),
+            completedTasks: tasks.filter(t => t.progress === 100).length,
+            productivityScore: parseFloat(score.toFixed(2)),
+            overdueTasks: overdue,
+            efficiency: parseFloat(efficiency.toFixed(2))
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // Get productivity score filtered by week or month
 const getFilteredProductivity = async (req, res) => {
     try {

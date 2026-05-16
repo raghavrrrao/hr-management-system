@@ -84,15 +84,27 @@ const calculateBurnoutForEmployee = async (employeeId) => {
     ).length;
 
     // Tasks — field is "employee" (not assignedTo), "completed" boolean, "date" String
-    const allTasksThisWeek = await Task.find({
-        employee: employeeId,
-        date: { $gte: weekStartStr, $lte: weekEndStr },
-    });
-
-    const completedTasks = allTasksThisWeek.filter((t) => t.completed === true).length;
-    const taskCompletionRate = allTasksThisWeek.length > 0
-        ? (completedTasks / allTasksThisWeek.length) * 100 : 100;
-    const lowCompletionHighHours = taskCompletionRate < 50 && avgDailyHours > 8;
+    const allTasks = await Task.find({ assignedTo: employeeId });
+    let totalWorkloadWeight = 0, overdueTasksCount = 0;
+    let totalExpectedProgress = 0, totalActualProgress = 0;
+    const now = new Date();
+    for (const task of allTasks) {
+        if (task.status === 'completed') continue;
+        totalWorkloadWeight += task.workloadWeight || 1;
+        const start = new Date(task.startDate);
+        const due = new Date(task.dueDate);
+        let expected = 0;
+        if (now > due) expected = 100;
+        else if (now > start) {
+            const totalDuration = due - start;
+            const elapsed = now - start;
+            expected = (elapsed / totalDuration) * 100;
+        }
+        totalExpectedProgress += expected * (task.workloadWeight || 1);
+        totalActualProgress += task.progress * (task.workloadWeight || 1);
+        if (task.dueDate < now && task.progress < 100 && task.status !== 'completed') overdueTasksCount++;
+    }
+    const progressEfficiency = totalExpectedProgress > 0 ? totalActualProgress / totalExpectedProgress : 1;
 
     // Leaves — startDate is a String in your model
     const thirtyDaysAgo = new Date();
