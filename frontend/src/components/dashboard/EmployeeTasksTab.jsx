@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import API from '../../api/axios';
 import TaskCard from '../TaskCard';
 import Card from '../ui/Card';
@@ -8,31 +8,47 @@ const EmployeeTasksTab = () => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    
-    const fetchTasks = async () => {
+
+    const fetchTasks = useCallback(async () => {
         try {
             const res = await API.get('/tasks/my');
-            setTasks(res.data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    };
-    
-    useEffect(() => { fetchTasks(); }, []);
-    
+            setTasks(res.data.tasks || res.data);
+        } catch (err) {
+            console.error('Failed to fetch tasks', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchTasks();
+    }, [fetchTasks]);
+
     const handleProgressUpdate = async (taskId, progress) => {
-        await API.put(`/tasks/${taskId}/progress`, { progress });
-        fetchTasks();
+        try {
+            await API.put(`/tasks/${taskId}/progress`, { progress });
+            fetchTasks();
+        } catch (err) {
+            console.error('Progress update failed', err);
+        }
     };
-    
+
     const handleStatusUpdate = async (taskId, status) => {
-        await API.put(`/tasks/${taskId}/status`, { status });
-        fetchTasks();
+        try {
+            await API.put(`/tasks/${taskId}/status`, { status });
+            fetchTasks();
+        } catch (err) {
+            console.error('Status update failed', err);
+            alert('Failed to update status. Please try again.');
+        }
     };
-    
-    const filteredTasks = tasks.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase()));
-    
+
+    const filteredTasks = tasks.filter(t =>
+        t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase())
+    );
+
     if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading tasks...</div>;
-    
+
     return (
         <Card style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>

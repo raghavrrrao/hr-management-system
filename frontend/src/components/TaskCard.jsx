@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, AlertCircle, CheckCircle, Circle } from 'lucide-react';
+import { Calendar, Clock } from 'lucide-react';
 
 const priorityColors = {
     low: '#22c55e',
@@ -22,16 +22,16 @@ const TaskCard = ({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) =
     const today = new Date();
     const dueDate = new Date(task.dueDate);
     const isOverdue = task.status === 'overdue' || (dueDate < today && task.progress < 100);
-    
+
     const handleProgressChange = (e) => {
         const newProgress = parseInt(e.target.value);
         onProgressUpdate(task._id, newProgress);
     };
-    
+
     const handleStatusChange = (e) => {
         onStatusUpdate(task._id, e.target.value);
     };
-    
+
     return (
         <div style={{
             background: 'white',
@@ -65,7 +65,7 @@ const TaskCard = ({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) =
                     </select>
                 </div>
             </div>
-            
+
             <div style={{ marginTop: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.7rem' }}>
                     <span>Progress</span>
@@ -78,7 +78,7 @@ const TaskCard = ({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) =
                     <input type="range" min="0" max="100" value={task.progress} onChange={handleProgressChange} style={{ width: '100%', marginTop: '0.5rem' }} />
                 )}
             </div>
-            
+
             {task.workLogs && task.workLogs.length > 0 && (
                 <details style={{ marginTop: '0.75rem', fontSize: '0.7rem' }}>
                     <summary style={{ cursor: 'pointer', color: '#64748b' }}>Work log ({task.workLogs.length})</summary>

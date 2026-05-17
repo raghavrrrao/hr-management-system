@@ -8,7 +8,6 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // Validate token on app load
     useEffect(() => {
         const validateToken = async () => {
             const token = localStorage.getItem('token');
@@ -17,28 +16,26 @@ export const AuthProvider = ({ children }) => {
                 setIsAuthenticated(false);
                 return;
             }
-
             try {
-                // Optional: verify token with backend
                 const response = await API.get('/auth/me');
                 const userData = response.data;
-                // Ensure we have user data and role
-                setUser({
+                // Store complete user info
+                const userInfo = {
                     _id: userData._id,
                     name: userData.name,
                     email: userData.email,
+                    employeeId: userData.employeeId,
                     role: userData.role,
-                });
+                    department: userData.department,
+                    designation: userData.designation,
+                    mustChangePassword: userData.mustChangePassword,
+                };
+                setUser(userInfo);
                 setIsAuthenticated(true);
-                // Also update stored user object
-                localStorage.setItem('user', JSON.stringify({
-                    _id: userData._id,
-                    name: userData.name,
-                    email: userData.email,
-                    role: userData.role,
-                }));
+                // Ensure localStorage has the latest user object
+                localStorage.setItem('user', JSON.stringify(userInfo));
             } catch (error) {
-                // Token invalid or expired – clear storage
+                console.error('Token validation failed:', error);
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 setIsAuthenticated(false);
@@ -47,24 +44,21 @@ export const AuthProvider = ({ children }) => {
                 setLoading(false);
             }
         };
-
         validateToken();
     }, []);
 
     const login = (userData) => {
+        const userInfo = {
+            _id: userData._id,
+            name: userData.name,
+            email: userData.email,
+            employeeId: userData.employeeId,
+            role: userData.role,
+            mustChangePassword: userData.mustChangePassword,
+        };
         localStorage.setItem('token', userData.token);
-        localStorage.setItem('user', JSON.stringify({
-            _id: userData._id,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-        }));
-        setUser({
-            _id: userData._id,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-        });
+        localStorage.setItem('user', JSON.stringify(userInfo));
+        setUser(userInfo);
         setIsAuthenticated(true);
     };
 
@@ -84,8 +78,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
+    if (!context) throw new Error('useAuth must be used within an AuthProvider');
     return context;
 };

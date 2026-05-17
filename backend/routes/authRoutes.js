@@ -7,6 +7,4 @@ router.post('/login', login);
 router.post('/change-password', protect, changePassword);
 router.get('/me', protect, getMe);
 
-// Public registration removed
-
 module.exports = router;

@@ -6,18 +6,18 @@ import {
 import { getAllBurnoutScores, getEmployeeBurnoutScore } from "../api/burnout";
 import BurnoutMeter from "../components/BurnoutMeter";
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const RISK_COLORS = {
     Low: "#22c55e",
     Moderate: "#f59e0b",
     High: "#ef4444",
+    Critical: "#7f1d1d"
 };
 
 const RISK_BG = {
     Low: "#f0fdf4",
     Moderate: "#fffbeb",
     High: "#fef2f2",
+    Critical: "#fef2f2"
 };
 
 const SIGNAL_LABELS = {
@@ -28,9 +28,10 @@ const SIGNAL_LABELS = {
     lowCompletionHighHours: "Fatigue Pattern",
     recentSickLeaves: "Sick Leaves (30d)",
     lateCheckouts: "Late Check-outs",
+    overdueTasksCount: "Overdue Tasks",
+    workloadWeight: "Workload Weight",
+    progressEfficiency: "Progress Efficiency"
 };
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 const SummaryCard = ({ label, value, color, emoji }) => (
     <div style={{
@@ -183,8 +184,6 @@ const DetailPanel = ({ record, onClose }) => {
     );
 };
 
-// ── Main Page ────────────────────────────────────────────────────────────────
-
 const BurnoutDashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -193,11 +192,21 @@ const BurnoutDashboard = () => {
     const [filterRisk, setFilterRisk] = useState("All");
     const [search, setSearch] = useState("");
 
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const res = await getAllBurnoutScores();
+            setData(res.data);
+        } catch (err) {
+            setError("Failed to load burnout data.");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        getAllBurnoutScores()
-            .then((res) => setData(res.data))
-            .catch(() => setError("Failed to load burnout data."))
-            .finally(() => setLoading(false));
+        fetchData();
     }, []);
 
     if (loading) return (
@@ -210,32 +219,39 @@ const BurnoutDashboard = () => {
         <div style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>{error}</div>
     );
 
+    if (!data || !data.scores || data.scores.length === 0) {
+        return (
+            <div style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
+                No burnout data available yet. Check back after employees have attendance and tasks.
+            </div>
+        );
+    }
+
     const { summary, scores } = data;
 
     const pieData = [
         { name: "Low", value: summary.low, color: RISK_COLORS.Low },
         { name: "Moderate", value: summary.moderate, color: RISK_COLORS.Moderate },
         { name: "High", value: summary.high, color: RISK_COLORS.High },
-    ].filter((d) => d.value > 0);
+        { name: "Critical", value: summary.critical, color: RISK_COLORS.Critical },
+    ].filter(d => d.value > 0);
 
     const barData = [...scores]
         .slice(0, 10)
-        .map((s) => ({
+        .map(s => ({
             name: s.employee?.name?.split(" ")[0] || "—",
             score: s.score,
             fill: RISK_COLORS[s.riskLevel],
         }));
 
-    const filtered = scores.filter((s) => {
+    const filtered = scores.filter(s => {
         const matchRisk = filterRisk === "All" || s.riskLevel === filterRisk;
         const matchName = (s.employee?.name || "").toLowerCase().includes(search.toLowerCase());
         return matchRisk && matchName;
     });
 
-    // Responsive breakpoints via CSS media queries or simple container width – we rely on parent's width
     return (
         <div style={{ width: "100%", fontFamily: "inherit" }}>
-            {/* Title */}
             <div style={{ marginBottom: 24 }}>
                 <h2 style={{ margin: 0, fontWeight: 800, fontSize: 22, color: "#111827" }}>
                     🧠 Burnout Early Warning System
@@ -245,16 +261,15 @@ const BurnoutDashboard = () => {
                 </p>
             </div>
 
-            {/* Summary cards */}
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
                 <SummaryCard label="Total Employees" value={summary.total} color="#6366f1" emoji="👥" />
-                <SummaryCard label="High Risk" value={summary.high} color={RISK_COLORS.High} emoji="🔥" />
-                <SummaryCard label="Moderate Risk" value={summary.moderate} color={RISK_COLORS.Moderate} emoji="⚠️" />
                 <SummaryCard label="Low Risk" value={summary.low} color={RISK_COLORS.Low} emoji="✅" />
+                <SummaryCard label="Moderate Risk" value={summary.moderate} color={RISK_COLORS.Moderate} emoji="⚠️" />
+                <SummaryCard label="High Risk" value={summary.high} color={RISK_COLORS.High} emoji="🔥" />
+                <SummaryCard label="Critical Risk" value={summary.critical || 0} color={RISK_COLORS.Critical} emoji="💀" />
                 <SummaryCard label="Avg Burnout Score" value={summary.avgScore} color="#8b5cf6" emoji="📊" />
             </div>
 
-            {/* Charts row */}
             <div style={{ display: "flex", gap: 20, marginBottom: 28, flexWrap: "wrap" }}>
                 <div style={{ ...chartCard, flex: 2, minWidth: 280 }}>
                     <p style={chartTitle}>Top 10 Highest Burnout Scores</p>
@@ -296,7 +311,6 @@ const BurnoutDashboard = () => {
                 </div>
             </div>
 
-            {/* Employee table */}
             <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.07)", width: "100%" }}>
                 <div style={{
                     padding: "16px 20px",
@@ -312,7 +326,7 @@ const BurnoutDashboard = () => {
                         onChange={(e) => setSearch(e.target.value)}
                         style={inputStyle}
                     />
-                    {["All", "High", "Moderate", "Low"].map((r) => (
+                    {["All", "Low", "Moderate", "High", "Critical"].map((r) => (
                         <button
                             key={r}
                             onClick={() => setFilterRisk(r)}
@@ -372,8 +386,6 @@ const BurnoutDashboard = () => {
         </div>
     );
 };
-
-// ── Styles (no max-width, full width) ────────────────────────────────────────
 
 const thStyle = {
     padding: "10px 16px",

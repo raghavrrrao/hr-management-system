@@ -1,0 +1,81 @@
+/* frontend/src/components/ui/Button.css */
+.ui-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    border-radius: 10px;
+}
+
+.ui-button-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+}
+
+.ui-button-md {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.85rem;
+}
+
+.ui-button-lg {
+    padding: 0.8rem 1.6rem;
+    font-size: 1rem;
+}
+
+.ui-button-primary {
+    background: #2e7df7;
+    color: white;
+}
+
+.ui-button-primary:hover:not(:disabled) {
+    background: #1a6ae0;
+    transform: translateY(-1px);
+}
+
+.ui-button-secondary {
+    background: rgba(46, 125, 247, 0.1);
+    color: #2e7df7;
+    border: 1px solid rgba(46, 125, 247, 0.3);
+}
+
+.ui-button-secondary:hover:not(:disabled) {
+    background: rgba(46, 125, 247, 0.15);
+}
+
+.ui-button-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.ui-button-danger:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+.ui-button-ghost {
+    background: transparent;
+    color: #64748b;
+}
+
+.ui-button-ghost:hover:not(:disabled) {
+    background: #f1f5f9;
+}
+
+.ui-button-full {
+    width: 100%;
+}
+
+.ui-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.ui-button:active:not(:disabled) {
+    transform: translateY(0);
+}

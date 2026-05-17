@@ -1,13 +1,11 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    employeeId: { type: String, unique: true, sparse: true }, // optional for existing, required for new
+    employeeId: { type: String, unique: true, required: true }, // required, auto-generated
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'employee'], default: 'employee' },
-    
-    // New enterprise fields
     department: { type: String, default: '' },
     designation: { type: String, default: '' },
     joiningDate: { type: Date, default: Date.now },

@@ -1,42 +1,6 @@
 const Attendance = require('../models/Attendance');
 const Task = require('../models/Task');
 
-// Get productivity score for an employee
-const getProductivityScore = async (req, res) => {
-    try {
-        const employeeId = req.params.employeeId;
-
-        // Get all attendance records for employee
-        const attendanceRecords = await Attendance.find({ employee: employeeId });
-
-        // Calculate total working hours
-        const totalWorkingHours = attendanceRecords.reduce((acc, record) => {
-            return acc + (record.workingHours || 0);
-        }, 0);
-
-        // Get completed tasks count
-        const completedTasks = await Task.countDocuments({
-            employee: employeeId,
-            completed: true
-        });
-
-        // Calculate productivity score
-        const productivityScore = totalWorkingHours > 0
-            ? (completedTasks / totalWorkingHours).toFixed(2)
-            : 0;
-
-        res.json({
-            employeeId,
-            totalWorkingHours: totalWorkingHours.toFixed(2),
-            completedTasks,
-            productivityScore: parseFloat(productivityScore)
-        });
-
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
 const getExpectedProgress = (task, currentDate) => {
     const start = new Date(task.startDate);
     const due = new Date(task.dueDate);

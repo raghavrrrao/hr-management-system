@@ -67,6 +67,17 @@ const EmployeeDashboard = () => {
 
     const today = new Date().toISOString().split('T')[0];
 
+    // Helper to safely extract array from API response
+    const safeArray = (data, fallback = []) => {
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.tasks)) return data.tasks;
+        if (data && Array.isArray(data.attendance)) return data.attendance;
+        if (data && Array.isArray(data.leaves)) return data.leaves;
+        if (data && Array.isArray(data.salaries)) return data.salaries;
+        if (data && Array.isArray(data.data)) return data.data;
+        return fallback;
+    };
+
     const fetchData = useCallback(async () => {
         try {
             const [attRes, taskRes, leaveRes, salaryRes] = await Promise.all([
@@ -75,11 +86,18 @@ const EmployeeDashboard = () => {
                 API.get('/leaves/my'),
                 API.get('/salary/my'),
             ]);
-            setAttendance(attRes.data);
-            setTasks(taskRes.data);
-            setLeaves(leaveRes.data);
-            setSalaries(salaryRes.data);
-            setTodayAttendance(attRes.data.find(a => a.date === today) || null);
+            
+            // Safely extract arrays from responses
+            const attendanceData = safeArray(attRes.data);
+            const tasksData = safeArray(taskRes.data);
+            const leavesData = safeArray(leaveRes.data);
+            const salariesData = safeArray(salaryRes.data);
+            
+            setAttendance(attendanceData);
+            setTasks(tasksData);
+            setLeaves(leavesData);
+            setSalaries(salariesData);
+            setTodayAttendance(attendanceData.find(a => a.date === today) || null);
 
             if (user?._id) {
                 const prodRes = await API.get(`/productivity/${user._id}`);
@@ -368,10 +386,10 @@ const EmployeeDashboard = () => {
                     {/* Stats cards – compact */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                         {[
-                            { label: 'Days present', value: attendance.length, icon: <UserCheck size={18} color="#2e7df7" />, color: '#2e7df7' },
-                            { label: 'Pending tasks', value: tasks.filter(t => !t.completed).length, icon: <Clock size={18} color="#f59e0b" />, color: '#f59e0b' },
+                            { label: 'Days present', value: Array.isArray(attendance) ? attendance.length : 0, icon: <UserCheck size={18} color="#2e7df7" />, color: '#2e7df7' },
+                            { label: 'Pending tasks', value: Array.isArray(tasks) ? tasks.filter(t => !t.completed).length : 0, icon: <Clock size={18} color="#f59e0b" />, color: '#f59e0b' },
                             { label: 'Productivity score', value: productivity?.productivityScore ?? '—', icon: <TrendingUp size={18} color={productivityColor} />, color: productivityColor },
-                            { label: 'Latest salary', value: `₹${salaries[0]?.netSalary?.toLocaleString() || '0'}`, icon: <DollarSign size={18} color="#10b981" />, color: '#10b981' },
+                            { label: 'Latest salary', value: `₹${(Array.isArray(salaries) && salaries[0]?.netSalary) ? salaries[0].netSalary.toLocaleString() : '0'}`, icon: <DollarSign size={18} color="#10b981" />, color: '#10b981' },
                         ].map(({ label, value, icon, color }) => (
                             <Card key={label}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -419,7 +437,7 @@ const EmployeeDashboard = () => {
                             <Card>
                                 <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem', color: '#0f172a' }}>Recent tasks</h3>
                                 <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    {tasks.slice(0, 5).map(task => (
+                                    {(Array.isArray(tasks) ? tasks : []).slice(0, 5).map(task => (
                                         <div key={task._id} onClick={() => handleTaskToggle(task)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem', background: 'rgba(241,245,249,0.7)', borderRadius: '10px', cursor: 'pointer' }}>
                                             <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${task.completed ? '#10b981' : '#94a3b8'}`, background: task.completed ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 {task.completed && <CheckSquare size={10} color="white" />}
@@ -430,7 +448,7 @@ const EmployeeDashboard = () => {
                                             </div>
                                         </div>
                                     ))}
-                                    {tasks.length === 0 && <p style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.8rem' }}>No tasks assigned</p>}
+                                    {(Array.isArray(tasks) ? tasks : []).length === 0 && <p style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.8rem' }}>No tasks assigned</p>}
                                 </div>
                             </Card>
 
@@ -467,7 +485,7 @@ const EmployeeDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {attendance.map(record => (
+                                        {(Array.isArray(attendance) ? attendance : []).map(record => (
                                             <tr key={record._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                                                 <td style={{ padding: '0.6rem', fontFamily: 'monospace' }}>{record.date}</td>
                                                 <td style={{ padding: '0.6rem', color: '#10b981' }}>{record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-'}</td>
@@ -487,7 +505,7 @@ const EmployeeDashboard = () => {
                         <Card>
                             <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem', color: '#0f172a' }}>My tasks</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                {tasks.map(task => (
+                                {(Array.isArray(tasks) ? tasks : []).map(task => (
                                     <div key={task._id} onClick={() => handleTaskToggle(task)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.7rem', background: 'rgba(241,245,249,0.7)', borderRadius: '10px', cursor: 'pointer' }}>
                                         <div style={{ width: '20px', height: '20px', borderRadius: '5px', border: `2px solid ${task.completed ? '#10b981' : '#94a3b8'}`, background: task.completed ? '#10b981' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {task.completed && <CheckSquare size={10} color="white" />}
@@ -499,7 +517,7 @@ const EmployeeDashboard = () => {
                                         <Badge color={task.completed ? '#10b981' : '#f59e0b'}>{task.completed ? 'Done' : 'Pending'}</Badge>
                                     </div>
                                 ))}
-                                {tasks.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No tasks assigned</p>}
+                                {(Array.isArray(tasks) ? tasks : []).length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No tasks assigned</p>}
                             </div>
                         </Card>
                     )}
@@ -510,7 +528,7 @@ const EmployeeDashboard = () => {
                             <Card>
                                 <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem', color: '#0f172a' }}>My leave requests</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    {leaves.map(leave => (
+                                    {(Array.isArray(leaves) ? leaves : []).map(leave => (
                                         <div key={leave._id} style={{ padding: '0.7rem', background: 'rgba(241,245,249,0.7)', borderRadius: '10px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span style={{ fontWeight: 600, fontSize: '0.8rem', textTransform: 'capitalize' }}>{leave.type} leave</span>
@@ -520,7 +538,7 @@ const EmployeeDashboard = () => {
                                             <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{leave.reason}</div>
                                         </div>
                                     ))}
-                                    {leaves.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No leave requests</p>}
+                                    {(Array.isArray(leaves) ? leaves : []).length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No leave requests</p>}
                                 </div>
                             </Card>
                             <Card>
@@ -562,7 +580,7 @@ const EmployeeDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {salaries.map(s => (
+                                        {(Array.isArray(salaries) ? salaries : []).map(s => (
                                             <tr key={s._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                                                 <td style={{ padding: '0.6rem' }}>{s.month}</td>
                                                 <td style={{ padding: '0.6rem' }}>₹{s.basicSalary.toLocaleString()}</td>
@@ -572,7 +590,7 @@ const EmployeeDashboard = () => {
                                                 <td style={{ padding: '0.6rem' }}><Badge color={s.status === 'paid' ? '#10b981' : '#f59e0b'}>{s.status}</Badge></td>
                                             </tr>
                                         ))}
-                                        {salaries.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No salary records</td></tr>}
+                                        {(Array.isArray(salaries) ? salaries : []).length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No salary records</td></tr>}
                                     </tbody>
                                 </table>
                             </div>

@@ -1,0 +1,39 @@
+/* frontend/src/components/ui/Badge.css */
+.ui-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ui-badge-default {
+    background: var(--color-bg-secondary, #f1f5f9);
+    color: var(--color-text-secondary, #475569);
+}
+
+.ui-badge-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.ui-badge-warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.ui-badge-danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.ui-badge-info {
+    background: rgba(46, 125, 247, 0.12);
+    color: #2e7df7;
+    border: 1px solid rgba(46, 125, 247, 0.3);
+}

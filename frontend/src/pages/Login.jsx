@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API from '../api/axios';
 import gsap from 'gsap';
-import { LogIn, Mail, Lock } from 'lucide-react';
+import { User, Lock } from 'lucide-react';
 
 const Login = () => {
-    const [form, setForm] = useState({ email: '', password: '' });
+    const [form, setForm] = useState({ identifier: '', password: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [focused, setFocused] = useState('');
@@ -38,65 +38,69 @@ const Login = () => {
         setLoading(true);
         setError('');
         try {
-            const { data } = await API.post('/auth/login', form);
-            login(data);
-            // store additional flag for mustChangePassword
+            const response = await API.post('/auth/login', {
+                identifier: form.identifier.trim(),
+                password: form.password
+            });
+            const { data } = response;
+            login(data); // data includes token, _id, name, email, employeeId, role, mustChangePassword
             if (data.mustChangePassword) {
-                // redirect to change password page
                 navigate('/change-password');
             } else {
                 navigate(data.role === 'admin' ? '/admin' : '/dashboard');
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Invalid credentials');
+            const message = err.response?.data?.message || 'Invalid credentials. Please try again.';
+            setError(message);
             gsap.fromTo(cardRef.current, { x: -8 }, { x: 0, duration: 0.5, ease: 'elastic.out(1,0.3)' });
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (
         <>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-                .login-root { font-family: 'Sora', sans-serif; }
-                .lf-input {
-                    width: 100%;
-                    padding: 0.875rem 1rem 0.875rem 2.75rem;
-                    background: rgba(15, 23, 42, 0.04);
-                    border: 1.5px solid rgba(148, 163, 184, 0.25);
-                    border-radius: 12px;
-                    color: #0f172a;
-                    font-size: 0.9rem;
-                    outline: none;
-                    transition: all 0.2s;
-                    box-sizing: border-box;
-                }
-                .lf-input:focus {
-                    border-color: #2e7df7;
-                    background: rgba(46, 125, 247, 0.04);
-                    box-shadow: 0 0 0 4px rgba(46, 125, 247, 0.09);
-                }
-                .lf-btn {
-                    width: 100%;
-                    padding: 0.95rem;
-                    background: linear-gradient(135deg, #1d4ed8 0%, #2e7df7 60%, #38bdf8 100%);
-                    border: none;
-                    border-radius: 12px;
-                    color: white;
-                    font-weight: 700;
-                    font-size: 0.95rem;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    box-shadow: 0 4px 20px rgba(46, 125, 247, 0.35);
-                }
-                .lf-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(46,125,247,0.45); }
-                .lf-btn:disabled { opacity: 0.65; cursor: not-allowed; }
-                @media (max-width: 768px) {
-                    .lf-left { display: none !important; }
-                    .lf-right { border-radius: 0 !important; }
-                    .lf-wrap { padding: 0 !important; min-height: 100vh; }
-                }
-            `}</style>
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+        .login-root { font-family: 'Sora', sans-serif; }
+        .lf-input {
+          width: 100%;
+          padding: 0.875rem 1rem 0.875rem 2.75rem;
+          background: rgba(15,23,42,0.04);
+          border: 1.5px solid rgba(148,163,184,0.25);
+          border-radius: 12px;
+          color: #0f172a;
+          font-size: 0.9rem;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .lf-input:focus {
+          border-color: #2e7df7;
+          background: rgba(46,125,247,0.04);
+          box-shadow: 0 0 0 4px rgba(46,125,247,0.09);
+        }
+        .lf-btn {
+          width: 100%;
+          padding: 0.95rem;
+          background: linear-gradient(135deg, #1d4ed8 0%, #2e7df7 60%, #38bdf8 100%);
+          border: none;
+          border-radius: 12px;
+          color: white;
+          font-weight: 700;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.3s;
+          box-shadow: 0 4px 20px rgba(46,125,247,0.35);
+        }
+        .lf-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(46,125,247,0.45); }
+        .lf-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+        @media (max-width: 768px) {
+          .lf-left { display: none !important; }
+          .lf-right { border-radius: 0 !important; }
+          .lf-wrap { padding: 0 !important; min-height: 100vh; }
+        }
+      `}</style>
+
             <div className="login-root" style={{ minHeight: '100vh', display: 'flex', background: '#f0f4ff', position: 'relative', overflow: 'hidden' }}>
                 <div ref={gridRef} style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(rgba(46,125,247,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(46,125,247,0.06) 1px, transparent 1px)`, backgroundSize: '48px 48px', pointerEvents: 'none' }} />
                 <div ref={orb1Ref} style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', top: -200, left: -100, background: 'radial-gradient(circle, rgba(46,125,247,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
@@ -111,7 +115,7 @@ const Login = () => {
                                 <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'rgba(255,255,255,0.9)' }}>HRManage</span>
                             </div>
                             <h2 style={{ margin: '0 0 1rem', fontSize: '2rem', fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>Enterprise HRMS<br /><span style={{ background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>secure access only</span></h2>
-                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', lineHeight: 1.65 }}>Company‑managed accounts. Contact your administrator for credentials.</p>
+                            <p style={{ margin: 0, color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', lineHeight: 1.65 }}>Use your company‑issued Employee ID or email.</p>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {[
@@ -146,21 +150,55 @@ const Login = () => {
                             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.8rem 1rem', borderRadius: '12px', marginBottom: '1.5rem', fontSize: '0.845rem' }}>{error}</div>}
 
                             <form onSubmit={handleSubmit}>
-                                {[
-                                    { field: 'email', type: 'email', label: 'Email address', placeholder: 'you@company.com', icon: <Mail size={15} /> },
-                                    { field: 'password', type: 'password', label: 'Password', placeholder: '••••••••', icon: <Lock size={15} /> },
-                                ].map(({ field, type, label, placeholder, icon }) => (
-                                    <div key={field} className="lf-field" style={{ marginBottom: '1.1rem' }}>
-                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: focused === field ? '#2e7df7' : '#64748b', marginBottom: '0.45rem', display: 'block' }}>{label}</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: focused === field ? '#2e7df7' : '#94a3b8' }}>{icon}</div>
-                                            <input className="lf-input" type={type} value={form[field]} onChange={e => setForm({ ...form, [field]: e.target.value })} required placeholder={placeholder} onFocus={() => setFocused(field)} onBlur={() => setFocused('')} />
+                                <div className="lf-field" style={{ marginBottom: '1.1rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: focused === 'identifier' ? '#2e7df7' : '#64748b', marginBottom: '0.45rem' }}>Employee ID or Email</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: focused === 'identifier' ? '#2e7df7' : '#94a3b8' }}>
+                                            <User size={15} />
                                         </div>
+                                        <input
+                                            className="lf-input"
+                                            type="text"
+                                            value={form.identifier}
+                                            onChange={e => setForm({ ...form, identifier: e.target.value })}
+                                            required
+                                            placeholder="EMP1001 or you@company.com"
+                                            onFocus={() => setFocused('identifier')}
+                                            onBlur={() => setFocused('')}
+                                            autoComplete="username"
+                                        />
                                     </div>
-                                ))}
-                                <button type="submit" disabled={loading} className="lf-btn">{loading ? 'Signing in...' : 'Sign in'}</button>
+                                </div>
+
+                                <div className="lf-field" style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: focused === 'password' ? '#2e7df7' : '#64748b', marginBottom: '0.45rem' }}>Password</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: focused === 'password' ? '#2e7df7' : '#94a3b8' }}>
+                                            <Lock size={15} />
+                                        </div>
+                                        <input
+                                            className="lf-input"
+                                            type="password"
+                                            value={form.password}
+                                            onChange={e => setForm({ ...form, password: e.target.value })}
+                                            required
+                                            placeholder="••••••••"
+                                            onFocus={() => setFocused('password')}
+                                            onBlur={() => setFocused('')}
+                                            autoComplete="current-password"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button type="submit" disabled={loading} className="lf-btn">
+                                    {loading ? 'Signing in...' : 'Sign in'}
+                                </button>
                             </form>
-                            <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#94a3b8', fontSize: '0.72rem', lineHeight: 1.6 }}>Accounts are created by administrators only.<br />Contact HR for access.</p>
+
+                            <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#94a3b8', fontSize: '0.72rem', lineHeight: 1.6 }}>
+                                Accounts are created by administrators only.<br />
+                                Contact HR for access.
+                            </p>
                         </div>
                     </div>
                 </div>

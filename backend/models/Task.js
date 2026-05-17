@@ -12,7 +12,6 @@ const taskSchema = new mongoose.Schema({
     description: { type: String, required: true },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    
     status: {
         type: String,
         enum: ['pending', 'in-progress', 'review', 'completed', 'overdue', 'blocked', 'on-hold'],
@@ -24,33 +23,29 @@ const taskSchema = new mongoose.Schema({
         default: 'medium'
     },
     progress: { type: Number, min: 0, max: 100, default: 0 },
-    
     startDate: { type: Date, required: true },
     dueDate: { type: Date, required: true },
     estimatedHours: { type: Number, required: true, min: 0.5 },
-    
     complexity: {
         type: String,
         enum: ['easy', 'medium', 'hard', 'critical'],
         default: 'medium'
     },
     workloadWeight: { type: Number, default: 1 },
-    
     workLogs: [workLogSchema],
     completedAt: { type: Date },
-    
 }, { timestamps: true });
 
-taskSchema.pre('save', function(next) {
+taskSchema.pre('save', function (next) {
     const complexityWeight = { easy: 1, medium: 2, hard: 3, critical: 5 };
     const priorityWeight = { low: 1, medium: 2, high: 3, critical: 4 };
     this.workloadWeight = (complexityWeight[this.complexity] || 2) + (priorityWeight[this.priority] || 2);
     next();
 });
 
-taskSchema.statics.updateOverdueTasks = async function() {
+taskSchema.statics.updateOverdueTasks = async function () {
     const now = new Date();
-    return await this.updateMany(
+    await this.updateMany(
         {
             dueDate: { $lt: now },
             progress: { $lt: 100 },

@@ -111,7 +111,7 @@ const AdminDashboard = () => {
     // Employee management UI state
     const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
     const [newEmployee, setNewEmployee] = useState({
-        employeeId: '',
+
         name: '',
         email: '',
         department: '',
@@ -125,6 +125,18 @@ const AdminDashboard = () => {
     const [employeeSearch, setEmployeeSearch] = useState('');
     const [employeeRoleFilter, setEmployeeRoleFilter] = useState('all');
 
+    // Helper to safely extract array from API response
+    const safeArray = (data, fallback = []) => {
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.tasks)) return data.tasks;
+        if (data && Array.isArray(data.attendance)) return data.attendance;
+        if (data && Array.isArray(data.employees)) return data.employees;
+        if (data && Array.isArray(data.leaves)) return data.leaves;
+        if (data && Array.isArray(data.salaries)) return data.salaries;
+        if (data && Array.isArray(data.data)) return data.data;
+        return fallback;
+    };
+
     const fetchData = useCallback(async () => {
         try {
             const [attRes, taskRes, empRes, leaveRes, salaryRes] = await Promise.all([
@@ -134,23 +146,32 @@ const AdminDashboard = () => {
                 API.get('/leaves'),
                 API.get('/salary'),
             ]);
-            setAttendance(attRes.data);
-            setTasks(taskRes.data);
-            setEmployees(empRes.data);
 
+            // Safely extract arrays from responses
+            const attendanceData = safeArray(attRes.data);
+            const tasksData = safeArray(taskRes.data);
+            const employeesData = safeArray(empRes.data);
+            const leavesData = safeArray(leaveRes.data);
+            const salariesData = safeArray(salaryRes.data);
+
+            setAttendance(attendanceData);
+            setTasks(tasksData);
+            setEmployees(employeesData);
+            setLeaves(leavesData);
+            setSalaries(salariesData);
+
+            // Use extracted data for predictions (not state, which hasn't updated yet)
             const predResults = await Promise.all(
-                empRes.data.map(emp =>
+                employeesData.map(emp =>
                     API.get(`/predictions/${emp._id}`)
                         .then(r => ({ ...r.data, name: emp.name, email: emp.email }))
                         .catch(() => ({ name: emp.name, email: emp.email, prediction: 'Unavailable', riskScore: 0 }))
                 )
             );
             setPredictions(predResults);
-            setLeaves(leaveRes.data);
-            setSalaries(salaryRes.data);
 
             const prodScores = await Promise.all(
-                empRes.data.map(emp =>
+                employeesData.map(emp =>
                     API.get(`/productivity/${emp._id}`)
                         .then(r => ({ ...r.data, name: emp.name, email: emp.email }))
                         .catch(() => ({ name: emp.name, email: emp.email, productivityScore: 0, completedTasks: 0, totalWorkingHours: '0.00' }))
@@ -160,7 +181,7 @@ const AdminDashboard = () => {
 
             getAllBurnoutScores()
                 .then(res => setBurnoutSummary(res.data.summary))
-                .catch(() => {});
+                .catch(() => { });
         } catch (err) { console.error(err); }
     }, []);
 
@@ -245,7 +266,7 @@ const AdminDashboard = () => {
             showMessage(`Employee created. Temporary password: ${response.data.tempPassword} (copy this now)`);
             setShowAddEmployeeModal(false);
             setNewEmployee({
-                employeeId: '',
+
                 name: '',
                 email: '',
                 department: '',
@@ -262,31 +283,37 @@ const AdminDashboard = () => {
     };
 
     const today = new Date().toISOString().split('T')[0];
-    const todayAttendance = attendance.filter(a => a.date === today);
-    const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
-    const pendingSalaries = salaries.filter(s => s.status === 'pending').length;
+    const safeAttendance = Array.isArray(attendance) ? attendance : [];
+    const safeTasks = Array.isArray(tasks) ? tasks : [];
+    const safeEmployees = Array.isArray(employees) ? employees : [];
+    const safeLeaves = Array.isArray(leaves) ? leaves : [];
+    const safeSalaries = Array.isArray(salaries) ? salaries : [];
+
+    const todayAttendance = safeAttendance.filter(a => a.date === today);
+    const pendingLeaves = safeLeaves.filter(l => l.status === 'pending').length;
+    const pendingSalaries = safeSalaries.filter(s => s.status === 'pending').length;
 
     const attendanceChartData = (() => {
         const map = {};
-        attendance.forEach(a => { map[a.date] = (map[a.date] || 0) + 1; });
+        safeAttendance.forEach(a => { map[a.date] = (map[a.date] || 0) + 1; });
         return Object.entries(map).slice(-7).map(([date, count]) => ({ date: date.slice(5), count }));
     })();
 
     const taskPieData = [
-        { name: 'Completed', value: tasks.filter(t => t.status === 'completed').length },
-        { name: 'Pending', value: tasks.filter(t => t.status !== 'completed').length },
+        { name: 'Completed', value: safeTasks.filter(t => t.status === 'completed').length },
+        { name: 'Pending', value: safeTasks.filter(t => t.status !== 'completed').length },
     ];
     const leavePieData = [
-        { name: 'Approved', value: leaves.filter(l => l.status === 'approved').length },
-        { name: 'Pending', value: leaves.filter(l => l.status === 'pending').length },
-        { name: 'Rejected', value: leaves.filter(l => l.status === 'rejected').length },
+        { name: 'Approved', value: safeLeaves.filter(l => l.status === 'approved').length },
+        { name: 'Pending', value: safeLeaves.filter(l => l.status === 'pending').length },
+        { name: 'Rejected', value: safeLeaves.filter(l => l.status === 'rejected').length },
     ];
 
     const statCards = [
-        { label: 'Employees', value: employees.length, icon: <Users size={18} color="#2e7df7" />, color: '#2e7df7' },
+        { label: 'Employees', value: safeEmployees.length, icon: <Users size={18} color="#2e7df7" />, color: '#2e7df7' },
         { label: 'Present Today', value: todayAttendance.length, icon: <UserCheck size={18} color="#10b981" />, color: '#10b981' },
-        { label: 'Total Tasks', value: tasks.length, icon: <CheckSquare size={18} color="#f59e0b" />, color: '#f59e0b' },
-        { label: 'Pending Tasks', value: tasks.filter(t => t.status !== 'completed').length, icon: <Clock size={18} color="#ef4444" />, color: '#ef4444' },
+        { label: 'Total Tasks', value: safeTasks.length, icon: <CheckSquare size={18} color="#f59e0b" />, color: '#f59e0b' },
+        { label: 'Pending Tasks', value: safeTasks.filter(t => t.status !== 'completed').length, icon: <Clock size={18} color="#ef4444" />, color: '#ef4444' },
         { label: 'Pending Leaves', value: pendingLeaves, icon: <BookOpen size={18} color="#a78bfa" />, color: '#a78bfa' },
         { label: 'Pending Salaries', value: pendingSalaries, icon: <DollarSign size={18} color="#fb923c" />, color: '#fb923c' },
         { label: 'High Risk', value: burnoutSummary?.high ?? '—', icon: <Flame size={18} color="#ef4444" />, color: '#ef4444', tab: 'burnout' },
@@ -338,7 +365,7 @@ const AdminDashboard = () => {
     });
 
     // Filtered employees based on search and role
-    const filteredEmployees = employees.filter(emp => {
+    const filteredEmployees = safeEmployees.filter(emp => {
         const matchesSearch = employeeSearch === '' ||
             emp.name?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
             emp.email?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
@@ -480,19 +507,19 @@ const AdminDashboard = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                                             <span style={{ color: '#475569', fontSize: '0.8rem' }}>Total payroll</span>
-                                            <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>₹{salaries.reduce((s, r) => s + r.netSalary, 0).toLocaleString()}</span>
+                                            <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>₹{safeSalaries.reduce((s, r) => s + r.netSalary, 0).toLocaleString()}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                                             <span style={{ color: '#475569', fontSize: '0.8rem' }}>Paid salaries</span>
-                                            <span>{salaries.filter(s => s.status === 'paid').length}</span>
+                                            <span>{safeSalaries.filter(s => s.status === 'paid').length}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                                             <span style={{ color: '#475569', fontSize: '0.8rem' }}>Approved leaves</span>
-                                            <span>{leaves.filter(l => l.status === 'approved').length}</span>
+                                            <span>{safeLeaves.filter(l => l.status === 'approved').length}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ color: '#475569', fontSize: '0.8rem' }}>Attendance records</span>
-                                            <span>{attendance.length}</span>
+                                            <span>{safeAttendance.length}</span>
                                         </div>
                                     </div>
                                 </Card>
@@ -519,8 +546,8 @@ const AdminDashboard = () => {
                             <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem', color: '#0f172a' }}>All attendance records</h3>
                             {isMobile ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    {attendance.map(record => <MobileAttendanceCard key={record._id} record={record} />)}
-                                    {attendance.length === 0 && <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>No records yet</p>}
+                                    {safeAttendance.map(record => <MobileAttendanceCard key={record._id} record={record} />)}
+                                    {safeAttendance.length === 0 && <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>No records yet</p>}
                                 </div>
                             ) : (
                                 <div style={{ overflowX: 'auto' }}>
@@ -531,7 +558,7 @@ const AdminDashboard = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {attendance.map(record => (
+                                            {safeAttendance.map(record => (
                                                 <tr key={record._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                                                     <td style={{ padding: '0.75rem' }}><div style={{ fontWeight: 500 }}>{record.employee?.name || 'Unknown'}</div><div style={{ fontSize: '0.7rem', color: '#64748b' }}>{record.employee?.email}</div></td>
                                                     <td style={{ padding: '0.75rem', fontFamily: 'monospace' }}>{record.date}</td>
@@ -710,13 +737,13 @@ const AdminDashboard = () => {
                         </Card>
                     )}
 
-                    {tab === 'tasks' && <AdminTasksTab employees={employees} />}
+                    {tab === 'tasks' && <AdminTasksTab employees={safeEmployees} />}
 
                     {tab === 'leaves' && (
                         <Card>
                             <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem', color: '#0f172a' }}>Leave requests</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                {leaves.map(leave => (
+                                {safeLeaves.map(leave => (
                                     <div key={leave._id} style={{ padding: '0.75rem', background: 'rgba(241,245,249,0.7)', borderRadius: '12px', border: '1px solid rgba(226,232,240,0.7)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                                         <div><div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{leave.employee?.name}</div><div style={{ fontSize: '0.7rem', color: '#64748b' }}>{leave.type} • {leave.startDate} → {leave.endDate}</div><div style={{ fontSize: '0.7rem', color: '#64748b' }}>{leave.reason}</div></div>
                                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -730,7 +757,7 @@ const AdminDashboard = () => {
                                         </div>
                                     </div>
                                 ))}
-                                {leaves.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No leave requests</p>}
+                                {safeLeaves.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No leave requests</p>}
                             </div>
                         </Card>
                     )}
@@ -747,7 +774,7 @@ const AdminDashboard = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {salaries.map(s => (
+                                            {safeSalaries.map(s => (
                                                 <tr key={s._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                                                     <td style={{ padding: '0.6rem' }}><div style={{ fontWeight: 500 }}>{s.employee?.name}</div><div style={{ fontSize: '0.65rem', color: '#64748b' }}>{s.employee?.email}</div></td>
                                                     <td style={{ padding: '0.6rem' }}>{s.month}</td>
@@ -759,14 +786,14 @@ const AdminDashboard = () => {
                                                     <td style={{ padding: '0.6rem' }}>{s.status === 'pending' && <button onClick={() => handleSalaryStatus(s._id, 'paid')} style={{ background: '#10b981', border: 'none', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer' }}>Pay</button>}</td>
                                                 </tr>
                                             ))}
-                                            {salaries.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No salary records</td></tr>}</tbody>
+                                            {safeSalaries.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>No salary records</td></tr>}</tbody>
                                     </table>
                                 </div>
                             </Card>
                             <Card>
                                 <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '0.9rem', color: '#0f172a' }}>Add salary record</h3>
                                 <form onSubmit={handleCreateSalary}>
-                                    <div style={{ marginBottom: '0.8rem' }}><label style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.2rem', display: 'block' }}>Employee</label><select value={salaryForm.employee} onChange={e => setSalaryForm({ ...salaryForm, employee: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}><option value="">Select employee</option>{employees.map(e => <option key={e._id} value={e._id}>{e.name}</option>)}</select></div>
+                                    <div style={{ marginBottom: '0.8rem' }}><label style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.2rem', display: 'block' }}>Employee</label><select value={salaryForm.employee} onChange={e => setSalaryForm({ ...salaryForm, employee: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}><option value="">Select employee</option>{safeEmployees.map(e => <option key={e._id} value={e._id}>{e.name}</option>)}</select></div>
                                     <div style={{ marginBottom: '0.8rem' }}><label style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.2rem', display: 'block' }}>Month</label><input type="month" value={salaryForm.month} onChange={e => setSalaryForm({ ...salaryForm, month: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} /></div>
                                     <div style={{ marginBottom: '0.8rem' }}><label style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.2rem', display: 'block' }}>Basic salary (₹)</label><input type="number" value={salaryForm.basicSalary} onChange={e => setSalaryForm({ ...salaryForm, basicSalary: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} /></div>
                                     <div style={{ marginBottom: '0.8rem' }}><label style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.2rem', display: 'block' }}>Bonus (₹)</label><input type="number" value={salaryForm.bonus} onChange={e => setSalaryForm({ ...salaryForm, bonus: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} /></div>
@@ -837,51 +864,64 @@ const AdminDashboard = () => {
 
             {/* Add Employee Modal (unchanged from previous) */}
             {showAddEmployeeModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-                    <div style={{ background: 'white', borderRadius: '20px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Add New Employee</h3>
-                            <button onClick={() => setShowAddEmployeeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+                <div style={{
+                    position: 'fixed', inset: 0,
+                    background: 'rgba(15, 23, 42, 0.55)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 2000,
+                }}>
+                    <div style={{
+                        background: '#ffffff',
+                        borderRadius: '24px',
+                        width: '90%', maxWidth: '500px',
+                        maxHeight: '90vh', overflowY: 'auto',
+                        padding: '1.5rem',
+                        boxShadow: '0 20px 35px -10px rgba(0, 0, 0, 0.2)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Add New Employee</h3>
+                            <button onClick={() => setShowAddEmployeeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                                <X size={22} color="#64748b" />
+                            </button>
                         </div>
                         <form onSubmit={handleCreateEmployee}>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Employee ID *</label>
-                                <input type="text" value={newEmployee.employeeId} onChange={e => setNewEmployee({ ...newEmployee, employeeId: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} placeholder="e.g., EMP001" />
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#334155' }}>Full Name *</label>
+                                <input type="text" value={newEmployee.name} onChange={e => setNewEmployee({ ...newEmployee, name: e.target.value })} required style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.9rem' }} />
                             </div>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Full Name *</label>
-                                <input type="text" value={newEmployee.name} onChange={e => setNewEmployee({ ...newEmployee, name: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#334155' }}>Email *</label>
+                                <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({ ...newEmployee, email: e.target.value })} required style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.9rem' }} />
                             </div>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Email *</label>
-                                <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({ ...newEmployee, email: e.target.value })} required style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#334155' }}>Department</label>
+                                <input type="text" value={newEmployee.department} onChange={e => setNewEmployee({ ...newEmployee, department: e.target.value })} style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.9rem' }} />
                             </div>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Department</label>
-                                <input type="text" value={newEmployee.department} onChange={e => setNewEmployee({ ...newEmployee, department: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#334155' }}>Designation</label>
+                                <input type="text" value={newEmployee.designation} onChange={e => setNewEmployee({ ...newEmployee, designation: e.target.value })} style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.9rem' }} />
                             </div>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Designation</label>
-                                <input type="text" value={newEmployee.designation} onChange={e => setNewEmployee({ ...newEmployee, designation: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#334155' }}>Joining Date</label>
+                                <input type="date" value={newEmployee.joiningDate} onChange={e => setNewEmployee({ ...newEmployee, joiningDate: e.target.value })} style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.9rem' }} />
                             </div>
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Joining Date</label>
-                                <input type="date" value={newEmployee.joiningDate} onChange={e => setNewEmployee({ ...newEmployee, joiningDate: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                            </div>
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>Role</label>
-                                <select value={newEmployee.role} onChange={e => setNewEmployee({ ...newEmployee, role: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#334155' }}>Role</label>
+                                <select value={newEmployee.role} onChange={e => setNewEmployee({ ...newEmployee, role: e.target.value })} style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.9rem' }}>
                                     <option value="employee">Employee</option>
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>
-                            <button type="submit" disabled={createLoading} style={{ width: '100%', padding: '0.6rem', background: '#2e7df7', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
+                            <button type="submit" disabled={createLoading} style={{ width: '100%', padding: '0.8rem', background: 'linear-gradient(135deg, #2e7df7, #1a6ae0)', border: 'none', borderRadius: '12px', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: createLoading ? 'not-allowed' : 'pointer', opacity: createLoading ? 0.7 : 1 }}>
                                 {createLoading ? 'Creating...' : 'Create Employee'}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
+
         </div>
     );
 };
