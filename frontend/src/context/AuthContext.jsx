@@ -17,25 +17,20 @@ export const AuthProvider = ({ children }) => {
                 return;
             }
             try {
-                const response = await API.get('/auth/me');
-                const userData = response.data;
-                // Store complete user info
+                const { data } = await API.get('/auth/me');
                 const userInfo = {
-                    _id: userData._id,
-                    name: userData.name,
-                    email: userData.email,
-                    employeeId: userData.employeeId,
-                    role: userData.role,
-                    department: userData.department,
-                    designation: userData.designation,
-                    mustChangePassword: userData.mustChangePassword,
+                    _id: data._id,
+                    id: data._id,
+                    name: data.name,
+                    email: data.email,
+                    employeeId: data.employeeId || null,
+                    role: data.role,
+                    mustChangePassword: data.mustChangePassword || false,
                 };
                 setUser(userInfo);
                 setIsAuthenticated(true);
-                // Ensure localStorage has the latest user object
                 localStorage.setItem('user', JSON.stringify(userInfo));
-            } catch (error) {
-                console.error('Token validation failed:', error);
+            } catch {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 setIsAuthenticated(false);
@@ -44,17 +39,19 @@ export const AuthProvider = ({ children }) => {
                 setLoading(false);
             }
         };
+
         validateToken();
     }, []);
 
     const login = (userData) => {
         const userInfo = {
             _id: userData._id,
+            id: userData._id,
             name: userData.name,
             email: userData.email,
-            employeeId: userData.employeeId,
+            employeeId: userData.employeeId || null,
             role: userData.role,
-            mustChangePassword: userData.mustChangePassword,
+            mustChangePassword: userData.mustChangePassword || false,
         };
         localStorage.setItem('token', userData.token);
         localStorage.setItem('user', JSON.stringify(userInfo));
@@ -78,6 +75,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) throw new Error('useAuth must be used within an AuthProvider');
+    if (!context) throw new Error('useAuth must be used within AuthProvider');
     return context;
 };

@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    employeeId: { type: String, unique: true, required: true }, // required, auto-generated
+    employeeId: {
+        type: String,
+        unique: true,
+        sparse: true,   // allows null/undefined for legacy docs without breaking uniqueness
+    },
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },

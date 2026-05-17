@@ -8,17 +8,11 @@ const priorityColors = {
     critical: '#ef4444'
 };
 
-const statusColors = {
-    pending: '#64748b',
-    'in-progress': '#3b82f6',
-    review: '#8b5cf6',
-    completed: '#10b981',
-    overdue: '#ef4444',
-    blocked: '#6b7280',
-    'on-hold': '#9ca3af'
-};
+const statusOptions = [
+    'pending', 'in-progress', 'review', 'completed', 'blocked', 'on-hold'
+];
 
-const TaskCard = ({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) => {
+const TaskCard = React.memo(({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) => {
     const today = new Date();
     const dueDate = new Date(task.dueDate);
     const isOverdue = task.status === 'overdue' || (dueDate < today && task.progress < 100);
@@ -55,13 +49,14 @@ const TaskCard = ({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) =
                     <span style={{ padding: '0.2rem 0.5rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 600, background: `${priorityColors[task.priority]}20`, color: priorityColors[task.priority] }}>
                         {task.priority}
                     </span>
-                    <select value={task.status} onChange={handleStatusChange} style={{ padding: '0.2rem 0.4rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.7rem', background: 'white' }}>
-                        <option value="pending">Pending</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="review">Review</option>
-                        <option value="completed">Completed</option>
-                        <option value="blocked">Blocked</option>
-                        <option value="on-hold">On Hold</option>
+                    <select
+                        value={task.status}
+                        onChange={handleStatusChange}
+                        style={{ padding: '0.2rem 0.4rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.7rem', background: 'white' }}
+                    >
+                        {statusOptions.map(s => (
+                            <option key={s} value={s}>{s.replace('-', ' ')}</option>
+                        ))}
                     </select>
                 </div>
             </div>
@@ -93,6 +88,6 @@ const TaskCard = ({ task, onProgressUpdate, onStatusUpdate, isAdmin = false }) =
             )}
         </div>
     );
-};
+});
 
 export default TaskCard;

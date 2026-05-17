@@ -6,7 +6,7 @@ const {
     getAllTasks,
     updateTaskProgress,
     updateTaskStatus,
-    deleteTask
+    deleteTask,
 } = require('../controllers/taskController');
 const { protect, adminOnly } = require('../middleware/auth');
 
